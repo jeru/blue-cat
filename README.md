@@ -24,3 +24,6 @@ Furthermore, there is no near-by power plug to the doorbell control panel.
  * [`Zephyr`](https://github.com/zephyrproject-rtos/zephyr) as the development platform.
    - It should support nRF very well.
    - Though might be a little bumpy for the ESP (some basic features still missing, so maybe the support is not very mature?). Backup plan is to use ESP's SDK.
+
+# Workflow
+[Here](docs/workflow.md).

@@ -1,0 +1,65 @@
+// Copyright 2024 Cheng Sheng
+// SPDX-License-Identifier: Apache-2.0
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+
+/ {
+  model = "blue_cat";
+  compatible = "noname,blue_cat";
+  chosen {
+    zephyr,sram = &sram0;
+    zephyr,flash = &flash0;
+    zephyr,code-partition = &slot0_partition;
+  };
+
+  leds {
+    compatible = "gpio-leds";
+    led0: led0 {
+      gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+    };
+  };
+
+  aliases {
+    led0 = &led0;
+  };
+};
+
+&flash0 {
+  partitions {
+    compatible = "fixed-partitions";
+    #address-cells = <1>;
+    #size-cells = <1>;
+
+    // NRF52840 has 1MB flash with 4KB (0x1000) page size.
+    // Head 12 pages for the MCU bootloader and tail 8 pages for storage, per
+    // `fixed-partitions.html`. Remaining page put into two partitions evenly.
+    // TODO: add scratch partition.
+    boot_partition: partition@0 {
+      label = "mcu_boot";
+      reg = <0x00000000 0x0000c000>;
+    };
+    slot0_partition: partition@c000 {
+      label = "image-0";
+      reg = <0x0000c000 0x00076000>;
+    };
+    slot1_partition: partition@82000 {
+      label = "image-1";
+      reg = <0x00082000 0x00076000>;
+    };
+    storage_partition: partition@f8000 {
+      label = "storage";
+      reg = <0x000f8000 0x00008000>;
+    };
+  };
+};
+
+&gpio0 {
+  status = "okay";
+};
+&gpio1 {
+  status = "okay";
+};
+&gpiote {
+  status = "okay";
+};
