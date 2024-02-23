@@ -21,7 +21,7 @@ This should also make `west` commands `debug`, `debugserver` and `attach` availa
 Don't forget to clean up the `build` folder before the next steps.
 
 ## Own program with `LOG_INF()` and LED.
-Add a hello-world as `apps/blue_cat/src/main.c` (at the [current version](), toggling LED with a different frequency than the `blinky` example, and logging messages with `LOG_INF`), a basic `CMakeLists.txt` under the project, and a project config (`prj.conf`) as:
+Add a hello-world as `apps/blue_cat/src/main.c` (at the [current version](https://github.com/jeru/blue-cat/tree/172ea8d9b8707ebef64e78d794d7a6d9578cd712/apps/blue_cat/src/main.c), toggling LED with a different frequency than the `blinky` example, and logging messages with `LOG_INF`), a basic `CMakeLists.txt` under the project, and a project config (`prj.conf`) as:
 ```
 CONFIG_GPIO=y
 CONFIG_LOG=y
@@ -57,6 +57,8 @@ $ python3 swo_parser.py
 ...
 ```
 
-The openocd config at the [current version]().
+The openocd config at the [current version](https://github.com/jeru/blue-cat/tree/172ea8d9b8707ebef64e78d794d7a6d9578cd712/apps/blue_cat/openocd.cfg).
 
 The utility `swo_parser.py` is authored by [robertlong13](https://github.com/robertlong13/SWO-Parser/tree/master).
+
+Calling `openocd` + `swo_parser` separately is obviously not satisfying enough for a smooth flow.
