@@ -15,10 +15,11 @@ from west.commands import WestCommand
 
 
 _RUNNERS_YAML_PATH = 'zephyr/runners.yaml'
+_KCONFIG_PATH = 'zephyr/.config'
 _OPENOCD_CFG_PATH = 'support/openocd.cfg'
 
 
-def guess_build_dir(build_dir):
+def _guess_build_dir(build_dir):
     def _try(build_dir):
         path = Path(build_dir).resolve()
         if (path / _RUNNERS_YAML_PATH).exists(): return path
@@ -32,13 +33,25 @@ def guess_build_dir(build_dir):
         return _try('build')
 
 
+def _read_runner_config(build_dir):
+    with open(build_dir / _RUNNERS_YAML_PATH) as f:
+        runner_yaml = yaml.safe_load(f.read())
+    return runner_yaml['config']
+
+
+def _read_kconfig(build_dir):
+    with open(build_dir / _KCONFIG_PATH) as f:
+        return dict(tuple(line.rstrip().split('=', maxsplit=1))
+                    for line in f if line.startswith('CONFIG_'))
+
+
 class ViewSwo(WestCommand):
     def __init__(self):
         super().__init__(
             'view-swo',
             'Views the SWO output.',
             dedent('''
-            No arg needed. Will start a server and a client.
+            Will start a server and a client.
 
             The server: `openocd`, presetting `$swo_file` to a named pipe, and
             using `-f ${BOARD_DIR}/support/openocd.cfg`. This config should
@@ -55,28 +68,35 @@ class ViewSwo(WestCommand):
         return parser
 
     def do_run(self, args, unknown_args):
-        build_dir = guess_build_dir(args.build_dir)
+        build_dir = _guess_build_dir(args.build_dir)
         log.inf('build-dir:', build_dir)
-        with open(build_dir / _RUNNERS_YAML_PATH) as f:
-            runner_yaml = yaml.safe_load(f.read())
-        runner_config = runner_yaml['config']
+        runner_config = _read_runner_config(build_dir)
+        kconfig = _read_kconfig(build_dir)
+
         openocd_path = runner_config['openocd']
-        board_dir = runner_config['board_dir']
-        openocd_cfg_path = Path(board_dir) / _OPENOCD_CFG_PATH
+        openocd_cfg_path = Path(runner_config['board_dir']) / _OPENOCD_CFG_PATH
         if not openocd_cfg_path.exists():
             raise ValueError(f'No {_OPENOCD_CFG_PATH} found in the board dir.')
 
+        # Named pipe to share between the server and client.
         named_pipe_path = build_dir / 'openocd-swo.pipe'
         try:
             named_pipe = os.mkfifo(named_pipe_path)
         except FileExistsError:
+            # Simply reuse existing FIFO from previous runs.
             pass
-        server = subprocess.Popen([
-            openocd_path,
-            '-c', f'set swo_file "{named_pipe_path}"',
-            '-f', openocd_cfg_path])
+        # Server: openocd.
+        openocd_cmd = [openocd_path]
+        openocd_cmd.extend(['-c', f'set swo_file "{named_pipe_path}"'])
+        pin_freq = kconfig['CONFIG_LOG_BACKEND_SWO_FREQ_HZ']
+        openocd_cmd.extend(['-c', f'set swo_pin_freq {pin_freq}'])
+        openocd_cmd.extend(['-f', openocd_cfg_path])
+        server = subprocess.Popen(openocd_cmd)
+        # Client: itmdump.
         try:
-            self.check_call(['itmdump', '-f', str(named_pipe_path)])
+            client = subprocess.Popen(
+                    ['itmdump', '-f', str(named_pipe_path)])
+            client.wait()
         finally:
             server.terminate()
             server.wait()
