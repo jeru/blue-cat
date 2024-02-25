@@ -1,0 +1,11 @@
+manifest:
+  self:
+      west-commands: west/west-commands.yml
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: main
+      import: true

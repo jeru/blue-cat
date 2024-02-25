@@ -62,3 +62,11 @@ The openocd config at the [current version](https://github.com/jeru/blue-cat/tre
 The utility `swo_parser.py` is authored by [robertlong13](https://github.com/robertlong13/SWO-Parser/tree/master).
 
 Calling `openocd` + `swo_parser` separately is obviously not satisfying enough for a smooth flow.
+
+## Integrate SWO viewer
+As of Feb 2024, Zephyr's use of OpenOcd via a Runner doesn't support further command expansion.
+So it seems the best bet is to add a `west` extension so we get a new command to view the SWO.
+
+Also, `swo_parser` reads the port `:6666` with a python socket object, so lacks reconnection support when the server side is gone then resumed.
+So a named pipe might be a better means of communication.
+Rust's `itm` crate provides an executable `itmdump` for that.

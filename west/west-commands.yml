@@ -1,0 +1,6 @@
+west-commands:
+  - file: west/view_swo.py
+    commands:
+      - name: view-swo
+        class: ViewSwo
+        help: Views the SWO output.

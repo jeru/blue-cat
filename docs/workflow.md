@@ -1,10 +1,16 @@
 # One-off setup
 * Install `zephyr` following [this page](https://docs.zephyrproject.org/latest/develop/getting_started/index.html).
-* Clone this git repo locally, say `${BLUE_CAT_GIT_REPO}`.
-
-# Per shell
-* Load venv by `$ source ~/zephyrproject/.venv/bin/activate`.
-* Load more env vars by `$ source ${BLUE_CAT_GIT_REPO}/extra-env.sh`.
+  - In theory, only `west` is needed.
+    The other contents (including zephyr) will be cloned into the project by `west`.
+  - **To use `west`, each shell needs `$ source ~/zephyrproject/.venv/bin/activate`.**
+* Clone this git repo locally:
+  ```bash
+  mkdir -p ~/MyProjects
+  cd ~/MyProjects
+  west init -m https://github.com/jeru/blue-cat blue-cat-west-ws
+  cd blue-cat-west-ws
+  west update
+  ```
 
 # Codelabs
 Major reason to write these codelabs: a way for the future "me" to resume the project after things are forgotten.
