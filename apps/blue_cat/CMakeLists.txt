@@ -5,4 +5,5 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(blue_cat)
 
-target_sources(app PRIVATE src/main.c)
+file(GLOB srcs src/*.c)
+target_sources(app PRIVATE ${srcs})
