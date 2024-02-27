@@ -24,11 +24,6 @@ int main() {
         LOG_ERR("err %d: Failed to make the LED pin output.", err);
         return err;
     }
-    err = bt_enable(/*cb=*/NULL);
-    if (err) {
-        LOG_ERR("err %d: Failed bt_enable().", err);
-        return err;
-    }
     blue_cat_bt_conn_loop_conn_cb_register(connected);
     blue_cat_bt_conn_loop_start();
     for (;;) {
