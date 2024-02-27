@@ -11,6 +11,17 @@
   cd blue-cat-west-ws
   west update
   ```
+And for the blue-cat module:
+  ```bash
+  cd blue-cat/apps/blue_cat
+  west build -b blue_cat .
+  ```
+
+# Each edit-test iteration
+For the blue-cat module (after setting up the SWO messages in the codelab):
+  ```bash
+  apps/blue_cat$ west flash && west view-swo
+  ```
 
 # Codelabs
 Major reason to write these codelabs: a way for the future "me" to resume the project after things are forgotten.
