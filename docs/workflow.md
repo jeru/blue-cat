@@ -16,11 +16,21 @@ And for the blue-cat module:
   cd blue-cat/apps/blue_cat
   west build -b blue_cat .
   ```
+For the blue-cat module:
+  ```bash
+  cd blue-cat/apps/chihuahua
+  west build -b chihuahua .
+  ```
 
 # Each edit-test iteration
 For the blue-cat module (after setting up the SWO messages in the codelab):
   ```bash
   apps/blue_cat$ west flash && west view-swo
+  ```
+
+For the chihuahua module:
+  ```bash
+  apps/chihuahua$ west flash && west espressif monitor
   ```
 
 # Codelabs
