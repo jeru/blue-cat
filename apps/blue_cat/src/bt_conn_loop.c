@@ -57,7 +57,7 @@ static void connected(struct bt_conn* conn, uint8_t err) {
 }
 
 static void disconnected(struct bt_conn* conn, uint8_t reason) {
-    if (reason) LOG_INF("reason %d: Disconnected.", reason);
+    LOG_INF("reason %d: Disconnected.", reason);
 }
 
 static void recycled() {

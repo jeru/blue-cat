@@ -11,16 +11,17 @@
   cd blue-cat-west-ws
   west update
   ```
-And for the blue-cat module:
+* For the blue-cat module:
   ```bash
   cd blue-cat/apps/blue_cat
   west build -b blue_cat .
   ```
-For the blue-cat module:
+* For the blue-cat module:
   ```bash
   cd blue-cat/apps/chihuahua
   west build -b chihuahua .
   ```
+* nRF52840 dongle accessibility by the `nRF Connect Desktop BLE app` (since I never got any luck on `nRF Connect Moible` when setting up the advertising): NordicSemi has [a packet](https://github.com/NordicSemiconductor/nrf-udev) for the `udev` rules. Install it.
 
 # Each edit-test iteration
 For the blue-cat module (after setting up the SWO messages in the codelab):
