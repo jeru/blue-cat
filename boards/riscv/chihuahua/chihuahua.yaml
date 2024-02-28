@@ -1,0 +1,13 @@
+# Copyright 2024 Cheng Sheng
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: chihuahua
+name: Chihuahua
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+ram: 400kb
+flash: 4096kb

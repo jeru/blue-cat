@@ -1,0 +1,77 @@
+// Copyright 2024 Cheng Sheng
+// SPDX-License-Identifier: Apache-2.0
+
+/dts-v1/;
+#include <espressif/esp32c3/esp32c3_mini_n4.dtsi>
+
+/ {
+  model = "chihuahua";
+  compatible = "noname,chihuahua";
+  chosen {
+    zephyr,sram = &sram0;
+    zephyr,flash = &flash0;
+    zephyr,code-partition = &slot0_partition;
+
+    // Send console messages to USB so `idf monitor` can see them directly.
+    zephyr,console = &usb_serial;
+    zephyr,shell-uart = &usb_serial;
+  };
+
+  leds {
+    compatible = "gpio-leds";
+    led0: led0 {
+      gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+    };
+  };
+
+  aliases {
+    led0 = &led0;
+  };
+};
+
+&flash0 {
+  partitions {
+    compatible = "fixed-partitions";
+    #address-cells = <1>;
+    #size-cells = <1>;
+    // This particular ESP32C3 chip has 4MB flash (by `idf monitor`).
+    // Page size: 4KB by https://shorturl.at/bAKT6.
+    // * Head 16 pages for the MCU bootloader. MUST BE 16 so slot0 is at
+    //   0x100000, the assumed starting address of ESP factory app.
+    // * Tail 8 pages for storage.
+    // * Additionally add 32 pages for scratch.
+    // * Remaining 968 pages put into two partitions evenly.
+    boot_partition: partition@0 {
+      label = "mcu_boot";
+      reg = <0x00000000 0x00010000>;
+    };
+    slot0_partition: partition@10000 {
+      label = "image-0";
+      reg = <0x00010000 0x001e4000>;
+    };
+    slot1_partition: partition@1f4000 {
+      label = "image-1";
+      reg = <0x001f4000 0x001e4000>;
+    };
+    scratch_partition: partition@3d8000 {
+      label = "image-scratch";
+      reg = <0x003d8000 0x00020000>;
+    };
+    storage_partition: partition@3f8000 {
+      label = "storage";
+      reg = <0x003f8000 0x00008000>;
+    };
+  };
+};
+
+&cpu0 {
+  clock-frequency = <ESP32_CLK_CPU_160M>;
+};
+
+&usb_serial {
+  status = "okay";
+};
+
+&gpio0 {
+  status = "okay";
+};

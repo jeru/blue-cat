@@ -1,0 +1,16 @@
+# Copyright 2024 Cheng Sheng
+# SPDX-License-Identifier: Apache-2.0
+
+# Board itself.
+CONFIG_BOARD_CHIHUAHUA=y
+# MCU
+CONFIG_SOC_SERIES_ESP32C3=y
+CONFIG_MAIN_STACK_SIZE=2048
+# Memory protections. https://shorturl.at/yzKSX
+# The option at ESP level doesn't seem to be exposed in Zephyr. Fortnuately the
+# the default is true.
+
+# Debug message console.
+CONFIG_SERIAL=y
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y

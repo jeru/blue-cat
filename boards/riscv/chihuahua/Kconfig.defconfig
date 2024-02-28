@@ -1,0 +1,17 @@
+# Copyright 2024 Cheng Sheng
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_CHIHUAHUA
+
+config BOARD
+  default "chihuahua"
+
+config HEAP_MEM_POOL_ADD_SIZE_BOARD
+  int
+  default 98304  # Big enough for WIFI. Why does everyone use this number?
+
+choice BT_HCI_BUS_TYPE
+  default BT_ESP32 if BT
+endchoice
+
+endif  # BOARD_CHIHUAHUA
