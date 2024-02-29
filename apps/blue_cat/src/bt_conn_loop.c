@@ -96,8 +96,6 @@ static struct bt_conn_cb m_conn_cb = {
 
 static void passkey_display(struct bt_conn *conn, unsigned int passkey) {
     LOG_INF("Passkey display: %.6u", passkey);
-    // TODO: implement Morse code display via LED, so pairing doesn't depend
-    // on debugging output.
 }
 
 static void auth_cancel(struct bt_conn *conn) {
