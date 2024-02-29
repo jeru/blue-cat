@@ -111,7 +111,7 @@ static void auth_cancel(struct bt_conn *conn) {
 static struct bt_conn_auth_cb m_conn_auth_cb = {
     .passkey_display = &passkey_display,
     .passkey_entry = NULL,  // Explicit null: no input means.
-    .cancel = auth_cancel,  // Required.
+    .cancel = &auth_cancel,  // Required.
 };
 
 void pairing_complete(struct bt_conn *conn, bool bonded) {
