@@ -13,6 +13,8 @@ struct blue_cat_central_conn_loop_cb {
     void (*connected)(struct bt_conn* conn);
     // Called for notification when disconnected.
     void (*disconnected)();
+    // Called to display `passkey`.
+    void (*passkey_display)(int passkey);
     // Asks for a passkey from 000000 to 999999. Anything outside the
     // value is regarded as aborted.
     int (*passkey_entry)();
@@ -23,6 +25,8 @@ struct blue_cat_central_conn_loop_cb {
 // CALL ONLY ONCE: starts the BLE scan-connect-auth-disconnect-scan loop.
 // Returns a non-zero error if `cb` or some config is wrong.
 // `cb` must be alive for the whole lifespan of the program.
+//
+// The device assumes the ability to display and input passkeys.
 int blue_cat_central_conn_loop_kickoff(
         struct blue_cat_central_conn_loop_cb* cb);
 

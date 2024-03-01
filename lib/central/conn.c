@@ -138,8 +138,7 @@ static struct bt_conn_cb m_conn_cb = {
 };
 
 static void passkey_display(struct bt_conn *conn, unsigned int passkey) {
-    LOG_INF("Passkey display: %.6u", passkey);
-    // TODO: alternative means to display.
+    m_loop_cb->passkey_display(passkey);
 }
 
 static void passkey_entry(struct bt_conn* conn) {
@@ -199,6 +198,7 @@ int blue_cat_central_conn_loop_kickoff(
         struct blue_cat_central_conn_loop_cb* cb) {
     if (cb == NULL ||
             cb->peer_name == NULL ||
+            cb->passkey_display == NULL ||
             cb->passkey_entry == NULL ||
             cb->passkey_confirm == NULL) {
         return -EINVAL;

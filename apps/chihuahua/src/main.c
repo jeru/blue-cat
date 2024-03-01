@@ -27,6 +27,10 @@ static int32_t parse_6digit_number(char* s) {
     return num;
 }
 
+static void passkey_display(int passkey) {
+    LOG_INF("Passkey display: %.6u", passkey);
+}
+
 static int passkey_entry() {
     for (;;) {
         LOG_INF("Input passkey needed. 6 Digits or 'n':");
@@ -55,6 +59,7 @@ static struct blue_cat_central_conn_loop_cb loop_cb = {
     // TODO: Share the constant with the BlueCat app.
     .peer_name = "BlueCat",
     .connected = &connected_cb,
+    .passkey_display = &passkey_display,
     .passkey_entry = &passkey_entry,
     .passkey_confirm = &passkey_confirm,
 };
