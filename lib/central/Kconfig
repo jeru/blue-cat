@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config BLUE_CAT_CENTRAL
+    bool "Enable central lib."
+    help
+        This option enables the central lib of the BlueCat project.

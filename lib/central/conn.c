@@ -3,33 +3,21 @@
 
 // The part of the callback hell that keeps the scan-connect-disconnect loop.
 
+#include <blue_cat/central/conn.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
-#include <zephyr/console/console.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(bt_conn_loop);
 
 static void start_scan();
 
-// TODO: Share the constant with the BlueCat app.
-static const char m_blue_cat_name[] = "BlueCat";
-
 // Holds a `struct bt_conn*` with referencing.
 static atomic_ptr_t m_conn = ATOMIC_PTR_INIT(NULL);
 
-static atomic_ptr_t m_user_conn_cb = ATOMIC_PTR_INIT(NULL);
-
-void chihuahua_bt_conn_loop_connected_callback_register(
-        void (*cb)(struct bt_conn* conn)) {
-    atomic_ptr_set(&m_user_conn_cb, (atomic_ptr_val_t)cb);
-}
-
-static void run_connected_callback(struct bt_conn* conn) {
-    void (*cb)(struct bt_conn* conn) = atomic_ptr_get(&m_user_conn_cb);
-    if (cb != NULL) cb(conn);
-}
+static struct blue_cat_central_conn_loop_cb* m_loop_cb = NULL;
 
 static bool process_adv_data(struct bt_data* data, void* name_matched) {
     if (data->type != BT_DATA_NAME_SHORTENED &&
@@ -37,8 +25,8 @@ static bool process_adv_data(struct bt_data* data, void* name_matched) {
         return true;  // Continue processing.
     }
     *((bool*)name_matched) =
-        data->data_len == strlen(m_blue_cat_name) &&
-        memcmp(data->data, m_blue_cat_name, data->data_len) == 0;
+        data->data_len == strlen(m_loop_cb->peer_name) &&
+        memcmp(data->data, m_loop_cb->peer_name, data->data_len) == 0;
     return false;  // Seen the name. Stop processing.
 }
 
@@ -102,7 +90,9 @@ static void connected(struct bt_conn* conn, uint8_t err) {
             return;
         }
     }
-    run_connected_callback(conn);
+    if (m_loop_cb->connected != NULL) {
+        m_loop_cb->connected(conn);
+    }
 }
 
 static void disconnected(struct bt_conn* conn, uint8_t reason) {
@@ -114,6 +104,9 @@ static void disconnected(struct bt_conn* conn, uint8_t reason) {
         k_sleep(K_MSEC(100));
     }
     bt_conn_unref(stored_conn);
+    if (m_loop_cb->disconnected != NULL) {
+        m_loop_cb->disconnected();
+    }
 }
 
 static void recycled() {
@@ -149,45 +142,25 @@ static void passkey_display(struct bt_conn *conn, unsigned int passkey) {
     // TODO: alternative means to display.
 }
 
-// Returns -1 for invalid.
-static int32_t parse_6digit_number(char* s) {
-    int32_t num = 0;
-    const int N = 6;
-    for (int i = 0; i < N; ++i) {
-        if (s[i] < '0' || s[i] > '9') return -1;
-        num = num * 10 + (s[i] - '0');
-    }
-    if (s[N] != '\0') return -1;
-    return num;
-}
-
 static void passkey_entry(struct bt_conn* conn) {
-    for (;;) {
-        LOG_INF("Input passkey needed. 6 Digits:");
-        char* s = console_getline();
-        int32_t passkey = parse_6digit_number(s);
-        if (passkey == -1) LOG_ERR("Invalid passkey. Retry.");
+    int passkey = m_loop_cb->passkey_entry();
+    if (passkey < 0 || passkey > 999999) {
+        int err = bt_conn_auth_cancel(conn);
+        if (err) LOG_ERR("err %d: Failed to reject passkey.", err);
+    } else {
         int err = bt_conn_auth_passkey_entry(conn, passkey);
-        if (err == 0) return;
-        LOG_ERR("err %d: Failed to enter passkey.", err);
+        if (err) LOG_ERR("err %d: Failed to input passkey.", err);
     }
 }
 
 static void passkey_confirm(struct bt_conn *conn, unsigned int passkey) {
-    LOG_INF("Confirm [y/n]? Passkey: %.6u", passkey);
-    for (;;) {
-        char* s = console_getline();
-        if (s[0] == 'y') {
-            int err = bt_conn_auth_passkey_confirm(conn);
-            if (err) LOG_ERR("err %d: Failed to confirm passkey.", err);
-            return;
-        } else if (s[0] == 'n') {
-            int err = bt_conn_auth_cancel(conn);
-            if (err) LOG_ERR("err %d: Failed to reject passkey.", err);
-            return;
-        }
+    if (m_loop_cb->passkey_confirm(passkey)) {
+        int err = bt_conn_auth_passkey_confirm(conn);
+        if (err) LOG_ERR("err %d: Failed to confirm passkey.", err);
+    } else {
+        int err = bt_conn_auth_cancel(conn);
+        if (err) LOG_ERR("err %d: Failed to reject passkey.", err);
     }
-
 }
 
 static void auth_cancel(struct bt_conn* conn) {
@@ -222,25 +195,34 @@ static struct bt_conn_auth_info_cb m_conn_auth_info_cb = {
 
 static atomic_t m_inited = ATOMIC_INIT(0);
 
-void chihuahua_bt_conn_loop_start() {
-    if (!atomic_cas(&m_inited, 0, 1)) return;  // Already called.
+int blue_cat_central_conn_loop_kickoff(
+        struct blue_cat_central_conn_loop_cb* cb) {
+    if (cb == NULL ||
+            cb->peer_name == NULL ||
+            cb->passkey_entry == NULL ||
+            cb->passkey_confirm == NULL) {
+        return -EINVAL;
+    }
+    if (!atomic_cas(&m_inited, 0, 1)) return -EALREADY;
+    m_loop_cb = cb;
     int err;
 
     err = bt_enable(/*cb=*/NULL);
     if (err) {
         LOG_ERR("err %d: Failed bt_enable().", err);
-        return;
+        return err;
     }
     bt_conn_cb_register(&m_conn_cb);
     err = bt_conn_auth_cb_register(&m_conn_auth_cb);
     if (err) {
         LOG_ERR("err %d: Failed bt_conn_auth_cb_register().", err);
-        return;
+        return err;
     }
     err = bt_conn_auth_info_cb_register(&m_conn_auth_info_cb);
     if (err) {
         LOG_ERR("err %d: Failed bt_conn_auth_info_cb_register().", err);
-        return;
+        return err;
     }
     start_scan();
+    return 0;
 }
