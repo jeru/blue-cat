@@ -2,5 +2,12 @@
 
 config BLUE_CAT_CENTRAL
     bool "Enable central lib."
+    select BT
+    select BT_CENTRAL
+    select BT_SMP
     help
         This option enables the central lib of the BlueCat project.
+
+config BLUE_CAT_CENTRAL_CONN_LOG_LEVEL
+    int "The log level of lib/central/conn.c."
+    default LOG_MAX_LEVEL

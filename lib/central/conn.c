@@ -10,7 +10,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(bt_conn_loop);
+LOG_MODULE_REGISTER(bt_conn_loop, CONFIG_BLUE_CAT_CENTRAL_CONN_LOG_LEVEL);
 
 static void start_scan();
 

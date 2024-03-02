@@ -9,5 +9,5 @@ toolchain:
   - zephyr
   - gnuarmemb
   - xtools
-ram: 400kb
-flash: 4096kb
+ram: 409600  # 400kb
+flash: 4194304  # 4096kb
