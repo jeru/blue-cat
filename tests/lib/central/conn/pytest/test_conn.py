@@ -59,6 +59,34 @@ def test_connected_bonded(bin_runner):
     asyncio.run(run())
 
 
+def test_connected_peer_no_input(bin_runner):
+    # DUT has display and keyboard. So authentication will be the peer
+    # displaying the passkey and DUT fully inputs.
+    class DisplayDelegate(PairingDelegate):
+        def __init__(self, proc_stdin):
+            super().__init__(io_capability=PairingDelegate.DISPLAY_OUTPUT_ONLY)
+            self.proc_stdin = proc_stdin
+
+        async def display_number(self, number: int, digits: int) -> None:
+            line = 'PK%.*dPK\n' % (digits, number)
+            self.proc_stdin.write(line.encode('utf-8'))
+            await self.proc_stdin.drain()
+
+    async def run():
+        async with bin_runner as (proc, link):
+            remote = bumbled_dut.create_remote_device(
+                link, name='TestPeerName',
+                delegate=DisplayDelegate(proc.stdin))
+            await remote.power_on()
+            await remote.start_advertising()
+            await _wait_until_line_with(
+                proc.stdout,
+                lambda line:
+                    True if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
+                    None)
+    asyncio.run(run())
+
+
 def test_wrong_name(bin_runner):
     async def run():
         async with bin_runner as (proc, link):

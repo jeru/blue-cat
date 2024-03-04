@@ -1,6 +1,8 @@
 // Copyright 2024 Cheng Sheng
 // SPDX-License-Identifier: Apache-2.0
 
+#include <stdio.h>
+
 #include <blue_cat/central/conn.h>
 
 #define LOG_LEVEL 4
@@ -21,7 +23,13 @@ static void passkey_display(int passkey) {
 
 static int passkey_entry() {
     LOG_INF("passkey_entry");
-    return -1;
+
+    char line[128];
+    if (!fgets(line, sizeof(line), stdin)) return -1;
+
+    int passkey;
+    if (sscanf(line, "PK%dPK", &passkey) < 0) return -1;
+    return passkey;
 }
 
 static bool passkey_confirm(int passkey) {

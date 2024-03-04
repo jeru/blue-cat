@@ -53,6 +53,7 @@ class BumbledDut:
         controller.random_address = 'A0:A0:A0:A0:A0:A0'
         proc = await asyncio.create_subprocess_exec(
                 self.bin_path, f'--bt-dev=127.0.0.1:{self.port}',
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE)
         return proc, link
 
