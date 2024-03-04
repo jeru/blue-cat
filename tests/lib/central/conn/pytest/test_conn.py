@@ -3,14 +3,17 @@
 
 import asyncio
 import logging
-import os.path
 from pathlib import Path
-import pytest
-import typing
+from typing import Callable
 import sys
 
+from bumble.link import LocalLink
 from bumble.pairing import PairingDelegate
-import bumbled_dut
+import pytest
+
+from bumbled_device import BumbledDevice
+from bumbled_zephyr import create_bumbled_device_for_zephyr
+from remote_device import create_remote_device
 
 
 _BUILD_DIR_ARG_PREFIX = '--build-dir'
@@ -23,31 +26,39 @@ def _find_build_dir() -> str:
             arg = arg[len(_BUILD_DIR_ARG_PREFIX):]
             if not arg:
                 return sys.argv[i + 1]
-            elif arg[0] == '=':
+            if arg[0] == '=':
                 return arg[1:]
     raise RuntimeError(f'Cannot find flag: {_BUILD_DIR_ARG_PREFIX}')
 
 
 async def _wait_until_line_with(
         s: asyncio.StreamReader,
-        w: typing.Callable[str, bool | None]) -> None:
+        w: Callable[str, bool | None]) -> None:
     while True:
         line = await s.readline()
+        if not line: break
         line = line.decode('utf-8')
-        logging.debug(line)
+        logging.debug('-----STDOUT----- %s', line)
         value = w(line)
         if value is not None: return value
 
 
-@pytest.fixture
-def bin_runner() -> bumbled_dut.BumbledDut:
-    return bumbled_dut.BumbledDut(_find_build_dir(), _PORT)
+@pytest.fixture(name='bumbler')
+def fixture_bumbler() -> Callable[LocalLink, BumbledDevice]:
+    bin_path = Path(_find_build_dir()) / 'zephyr/zephyr.exe'
+    assert bin_path.exists()
+    def create(link: LocalLink) -> BumbledDevice:
+        return create_bumbled_device_for_zephyr(
+            'DUT', _PORT, link, str(bin_path), extra_program_args=[])
+    return create
 
 
-def test_connected_bonded(bin_runner):
+def test_connected_bonded(bumbler):
     async def run():
-        async with bin_runner as (proc, link):
-            remote = bumbled_dut.create_remote_device(
+        link = LocalLink()
+        async with bumbler(link) as bumbled_device:
+            proc = bumbled_device.process
+            remote = create_remote_device(
                 link, name='TestPeerName')
             await remote.power_on()
             await remote.start_advertising()
@@ -59,7 +70,7 @@ def test_connected_bonded(bin_runner):
     asyncio.run(run())
 
 
-def test_connected_peer_no_input(bin_runner):
+def test_connected_peer_no_input(bumbler):
     # DUT has display and keyboard. So authentication will be the peer
     # displaying the passkey and DUT fully inputs.
     class DisplayDelegate(PairingDelegate):
@@ -73,8 +84,10 @@ def test_connected_peer_no_input(bin_runner):
             await self.proc_stdin.drain()
 
     async def run():
-        async with bin_runner as (proc, link):
-            remote = bumbled_dut.create_remote_device(
+        link = LocalLink()
+        async with bumbler(link) as bumbled_device:
+            proc = bumbled_device.process
+            remote = create_remote_device(
                 link, name='TestPeerName',
                 delegate=DisplayDelegate(proc.stdin))
             await remote.power_on()
@@ -87,10 +100,12 @@ def test_connected_peer_no_input(bin_runner):
     asyncio.run(run())
 
 
-def test_wrong_name(bin_runner):
+def test_wrong_name(bumbler):
     async def run():
-        async with bin_runner as (proc, link):
-            remote = bumbled_dut.create_remote_device(
+        link = LocalLink()
+        async with bumbler(link) as bumbled_device:
+            proc = bumbled_device.process
+            remote = create_remote_device(
                 link, name='WRONG___PeerName')
             await remote.power_on()
             await remote.start_advertising()
@@ -104,12 +119,14 @@ def test_wrong_name(bin_runner):
     asyncio.run(run())
 
 
-def test_insecure_peer(bin_runner):
+def test_insecure_peer(bumbler):
     class NoPairingDelegate(PairingDelegate):
-        def accept(self): return False
+        async def accept(self): return False
     async def run():
-        async with bin_runner as (proc, link):
-            remote = bumbled_dut.create_remote_device(
+        link = LocalLink()
+        async with bumbler(link) as bumbled_device:
+            proc = bumbled_device.process
+            remote = create_remote_device(
                 link, name='TestPeerName', delegate=NoPairingDelegate())
             await remote.power_on()
             await remote.start_advertising()
