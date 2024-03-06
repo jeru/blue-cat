@@ -40,3 +40,4 @@ Major reason to write these codelabs: a way for the future "me" to resume the pr
 1. [`west flash` and SWO messages](codelabs/west_flash_and_swo.md).
 1. [Connection of the nRF52840 module](codelabs/connection_bluecat.md).
 1. [Blink an ESP32C3 module](codelabs/blinky_esp32c3.md).
+1. Connection of the ESP32C3 module (as central) is similar to the other (as peripheral), major difference being switching advertising to scanning.
