@@ -11,6 +11,9 @@ from bumble.link import LocalLink
 from bumble.pairing import PairingDelegate
 import pytest
 
+# TODO: Remove after the testing helpers are made a library.
+sys.path.append(str(Path(__file__).parents[5] / 'py'))
+
 from bumbled_device import BumbledDevice
 from bumbled_zephyr import create_bumbled_device_for_zephyr
 from remote_device import create_remote_device
