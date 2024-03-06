@@ -1,15 +1,20 @@
 // Copyright 2024 Cheng Sheng
 // SPDX-License-Identifier: Apache-2.0
 
-// The part of the callback hell that keeps the advertising-connect-disconnect
-// loop.
+// The part of the callback hell that keeps the adv-connect-disconnect loop.
+
+#include <blue_cat/peripheral/conn.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(bt_conn_loop);
+LOG_MODULE_REGISTER(bt_conn_loop, CONFIG_BLUE_CAT_PERIPHERAL_CONN_LOG_LEVEL);
+
+#if CONFIG_BT_MAX_CONN != 1
+#   error "Expect CONFIG_BT_MAX_CONN == 1"
+#endif
 
 static const struct bt_data m_adv_data[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -20,8 +25,8 @@ static const struct bt_data m_adv_data[] = {
 static void start_advertising() {
     // TODO: Implement connection accept list.
     int err = bt_le_adv_start(BT_LE_ADV_CONN_NAME_AD,
-                              m_adv_data, ARRAY_SIZE(m_adv_data),
-                              /*sd=*/NULL, /*sd_len=*/0);
+            m_adv_data, ARRAY_SIZE(m_adv_data),
+            /*sd=*/NULL, /*sd_len=*/0);
     if (err) LOG_ERR("err %d: Failed to start adv.", err);
 }
 
@@ -30,12 +35,7 @@ static void stop_advertising() {
     if (err) LOG_ERR("err %d: Failed to stop adv.", err);
 }
 
-static atomic_ptr_t m_user_conn_cb = ATOMIC_PTR_INIT(NULL);
-
-void blue_cat_bt_conn_loop_conn_cb_register(
-        void (*user_connected)(struct bt_conn* conn)) {
-    atomic_ptr_set(&m_user_conn_cb, (atomic_ptr_val_t)user_connected);
-}
+static struct blue_cat_peripheral_conn_loop_cb* m_loop_cb = NULL;
 
 static void connected(struct bt_conn* conn, uint8_t err) {
     if (err) {
@@ -47,17 +47,17 @@ static void connected(struct bt_conn* conn, uint8_t err) {
         int err = bt_conn_set_security(conn, BT_SECURITY_L4);
         if (err) {
             LOG_ERR("err %d: Failed to request security.", err);
+            (void)bt_conn_disconnect(conn, BT_HCI_ERR_AUTH_FAIL);
             return;
         }
     }
-
-    void (*user_connected)(struct bt_conn* conn) =
-        atomic_ptr_get(&m_user_conn_cb);
-    if (user_connected) user_connected(conn);
+    LOG_DBG("Connected.");
+    if (m_loop_cb->connected != NULL) m_loop_cb->connected(conn);
 }
 
 static void disconnected(struct bt_conn* conn, uint8_t reason) {
-    LOG_INF("reason %d: Disconnected.", reason);
+    LOG_DBG("reason %d: Disconnected.", reason);
+    if (m_loop_cb->disconnected != NULL) m_loop_cb->disconnected(conn);
 }
 
 static void recycled() {
@@ -71,18 +71,16 @@ static bool le_param_req(struct bt_conn *conn,
 
 static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa,
                               const bt_addr_le_t *identity) {
-    // TODO: remove excessive debug.
     char addr[BT_ADDR_LE_STR_LEN];
     bt_addr_le_to_str(rpa, addr, sizeof(addr));
-    LOG_INF("Idneity-resolved. From: %s", addr);
+    LOG_DBG("Idneity-resolved. From: %s", addr);
     bt_addr_le_to_str(identity, addr, sizeof(addr));
-    LOG_INF("To: %s", addr);
+    LOG_DBG("To: %s", addr);
 }
 
 static void security_changed(struct bt_conn *conn, bt_security_t level,
 				             enum bt_security_err err) {
-    // TODO: remove excessive debug.
-    LOG_INF("Sec changed: level %d err %d", (int)level, (int)err);
+    LOG_DBG("Sec changed: level %d err %d", (int)level, (int)err);
 }
 
 static struct bt_conn_cb m_conn_cb = {
@@ -95,7 +93,7 @@ static struct bt_conn_cb m_conn_cb = {
 };
 
 static void passkey_display(struct bt_conn *conn, unsigned int passkey) {
-    LOG_INF("Passkey display: %.6u", passkey);
+    m_loop_cb->passkey_display(passkey);
 }
 
 static void auth_cancel(struct bt_conn *conn) {
@@ -113,8 +111,7 @@ static struct bt_conn_auth_cb m_conn_auth_cb = {
 };
 
 void pairing_complete(struct bt_conn *conn, bool bonded) {
-    // TODO: remove excessive debug.
-    LOG_INF("Paired. bonded=%d", (int)bonded);
+    LOG_DBG("Paired. bonded=%d", (int)bonded);
 }
 
 void pairing_failed(struct bt_conn *conn, enum bt_security_err reason) {
@@ -129,27 +126,34 @@ static struct bt_conn_auth_info_cb m_conn_auth_info_cb = {
 
 static atomic_t m_inited = ATOMIC_INIT(0);
 
-void blue_cat_bt_conn_loop_start() {
-    if (!atomic_cas(&m_inited, 0, 1)) return;  // Already called.
+int blue_cat_peripheral_conn_loop_kickoff(
+        struct blue_cat_peripheral_conn_loop_cb* cb) {
+    if (cb == NULL ||
+            cb->peer_name == NULL ||
+            cb->passkey_display == NULL) {
+        return -EINVAL;
+    }
+    if (!atomic_cas(&m_inited, 0, 1)) return -EALREADY;
+    m_loop_cb = cb;
     int err;
 
     err = bt_enable(/*cb=*/NULL);
     if (err) {
         LOG_ERR("err %d: Failed bt_enable().", err);
-        return;
+        return err;
     }
     bt_conn_cb_register(&m_conn_cb);
     err = bt_conn_auth_cb_register(&m_conn_auth_cb);
     if (err) {
         LOG_ERR("err %d: Failed bt_conn_auth_cb_register().", err);
-        return;
+        return err;
     }
     err = bt_conn_auth_info_cb_register(&m_conn_auth_info_cb);
     if (err) {
         LOG_ERR("err %d: Failed bt_conn_auth_info_cb_register().", err);
-        return;
+        return err;
     }
 
     start_advertising();
+    return 0;
 }
-

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config BLUE_CAT_PERIPHERAL
+    bool "Enable peripheral lib."
+    select BT
+    select BT_PERIPHERAL
+    select BT_BAS
+    # Security.
+    select BT_BONDABLE
+    select BT_SMP
+    select BT_SMP_SC_ONLY
+    help
+        This option enables the peripheral lib of the BlueCat project.
+
+config BLUE_CAT_PERIPHERAL_CONN_LOG_LEVEL
+    int "The log level of lib/peripheral/conn.c."
+    default LOG_MAX_LEVEL
