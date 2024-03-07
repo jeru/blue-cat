@@ -66,6 +66,7 @@ static void recycled() {
 
 static bool le_param_req(struct bt_conn *conn,
                          struct bt_le_conn_param *param) {
+    LOG_DBG("received new conn param.");
     return true;  // TODO: ensure `param` not bad for the battery.
 }
 
