@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config BLUE_CAT_PERIPHERAL
-    bool "Enable peripheral lib."
+    bool "Enable peripheral lib (but not individual modules)."
     select BT
     select BT_PERIPHERAL
     select BT_BAS
@@ -11,6 +11,15 @@ config BLUE_CAT_PERIPHERAL
     select BT_SMP_SC_ONLY
     help
         This option enables the peripheral lib of the BlueCat project.
+
+config BLUE_CAT_PERIPHERAL_CONN
+    bool "Enable peripheral connection loop module."
+    select BLUE_CAT_PERIPHERAL
+
+config BLUE_CAT_PERIPHERAL_DOORBELL
+    bool "Enable peripheral doorbell service GATT."
+    select BLUE_CAT_PERIPHERAL
+    select BT_GATT_SERVER
 
 config BLUE_CAT_PERIPHERAL_CONN_LOG_LEVEL
     int "The log level of lib/peripheral/conn.c."
