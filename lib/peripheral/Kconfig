@@ -16,11 +16,11 @@ config BLUE_CAT_PERIPHERAL_CONN
     bool "Enable peripheral connection loop module."
     select BLUE_CAT_PERIPHERAL
 
-config BLUE_CAT_PERIPHERAL_DOORBELL
-    bool "Enable peripheral doorbell service GATT."
-    select BLUE_CAT_PERIPHERAL
-    select BT_GATT_SERVER
-
 config BLUE_CAT_PERIPHERAL_CONN_LOG_LEVEL
     int "The log level of lib/peripheral/conn.c."
     default LOG_MAX_LEVEL
+
+config BLUE_CAT_PERIPHERAL_GATT_DOORBELL
+    bool "Enable peripheral doorbell service GATT."
+    select BLUE_CAT_PERIPHERAL
+    select BT_GATT_SERVER

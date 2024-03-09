@@ -1,3 +1,17 @@
+// Copyright 2024 Cheng Sheng
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/sys/atomic.h>
@@ -5,7 +19,7 @@
 LOG_MODULE_REGISTER(doorbell);
 
 #include <blue_cat/common/ids.h>
-#include <blue_cat/peripheral/doorbell.h>
+#include <blue_cat/peripheral/gatt_doorbell.h>
 
 // int32
 static atomic_t m_doorbell_ring = ATOMIC_INIT(-1);
@@ -45,7 +59,7 @@ BT_GATT_SERVICE_DEFINE(
     BT_GATT_CUD("DoorbellRing in ms. -1 for not ongoing.",
                 BT_GATT_PERM_READ_AUTHEN));
 
-void blue_cat_doorbell_ring_write(int32_t duration_ms) {
+void blue_cat_gatt_doorbell_ring_write(int32_t duration_ms) {
     int32_t old_value = atomic_set(&m_doorbell_ring, (atomic_val_t)duration_ms);
     if (old_value == duration_ms) return;
     int err = bt_gatt_notify(/*conn=*/NULL, &doorbell_service.attrs[1],
