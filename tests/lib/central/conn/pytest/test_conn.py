@@ -26,23 +26,22 @@ import pytest
 sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
-from bumbled_zephyr import create_bumbled_device_for_zephyr
+import bumbled_zephyr
 from remote_device import create_remote_device
 
 
-_BUILD_DIR_ARG_PREFIX = '--build-dir'
-_PORT = 23456
+_PORT = 23458
 
 
-def _find_build_dir() -> str:
-    for i, arg in enumerate(sys.argv):
-        if arg.startswith(_BUILD_DIR_ARG_PREFIX):
-            arg = arg[len(_BUILD_DIR_ARG_PREFIX):]
-            if not arg:
-                return sys.argv[i + 1]
-            if arg[0] == '=':
-                return arg[1:]
-    raise RuntimeError(f'Cannot find flag: {_BUILD_DIR_ARG_PREFIX}')
+@pytest.fixture
+def link() -> LocalLink: return LocalLink()
+
+
+@pytest.fixture
+def bumbled_device(link) -> BumbledDevice:
+    return bumbled_zephyr.create_bumbled_device_for_zephyr(
+            'DUT', _PORT, link,
+            bumbled_zephyr.find_zephyr_binary_from_env())
 
 
 async def _wait_until_line_with(
@@ -57,23 +56,11 @@ async def _wait_until_line_with(
         if value is not None: return value
 
 
-@pytest.fixture(name='bumbler')
-def fixture_bumbler() -> Callable[LocalLink, BumbledDevice]:
-    bin_path = Path(_find_build_dir()) / 'zephyr/zephyr.exe'
-    assert bin_path.exists()
-    def create(link: LocalLink) -> BumbledDevice:
-        return create_bumbled_device_for_zephyr(
-            'DUT', _PORT, link, str(bin_path), extra_program_args=[])
-    return create
-
-
-def test_connected_bonded(bumbler):
+def test_connected_bonded(bumbled_device, link):
     async def run():
-        link = LocalLink()
-        async with bumbler(link) as bumbled_device:
+        async with bumbled_device:
             proc = bumbled_device.process
-            remote = create_remote_device(
-                link, name='TestPeerName')
+            remote = create_remote_device(link, name='TestPeerName')
             await remote.power_on()
             await remote.start_advertising()
             await _wait_until_line_with(
@@ -84,7 +71,7 @@ def test_connected_bonded(bumbler):
     asyncio.run(run())
 
 
-def test_connected_peer_no_input(bumbler):
+def test_connected_peer_no_input(bumbled_device, link):
     # DUT has display and keyboard. So authentication will be the peer
     # displaying the passkey and DUT fully inputs.
     class DisplayDelegate(PairingDelegate):
@@ -98,8 +85,7 @@ def test_connected_peer_no_input(bumbler):
             await self.proc_stdin.drain()
 
     async def run():
-        link = LocalLink()
-        async with bumbler(link) as bumbled_device:
+        async with bumbled_device:
             proc = bumbled_device.process
             remote = create_remote_device(
                 link, name='TestPeerName',
@@ -114,10 +100,9 @@ def test_connected_peer_no_input(bumbler):
     asyncio.run(run())
 
 
-def test_wrong_name(bumbler):
+def test_wrong_name(bumbled_device, link):
     async def run():
-        link = LocalLink()
-        async with bumbler(link) as bumbled_device:
+        async with bumbled_device:
             proc = bumbled_device.process
             remote = create_remote_device(
                 link, name='WRONG___PeerName')
@@ -133,12 +118,11 @@ def test_wrong_name(bumbler):
     asyncio.run(run())
 
 
-def test_insecure_peer(bumbler):
+def test_insecure_peer(bumbled_device, link):
     class NoPairingDelegate(PairingDelegate):
         async def accept(self): return False
     async def run():
-        link = LocalLink()
-        async with bumbler(link) as bumbled_device:
+        async with bumbled_device:
             proc = bumbled_device.process
             remote = create_remote_device(
                 link, name='TestPeerName', delegate=NoPairingDelegate())

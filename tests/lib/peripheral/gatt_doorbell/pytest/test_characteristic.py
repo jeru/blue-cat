@@ -28,42 +28,30 @@ import pytest
 sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
-from bumbled_zephyr import create_bumbled_device_for_zephyr
+import bumbled_zephyr
 from central_device import SmpCentralDevice
 
 
-_BUILD_DIR_ARG_PREFIX = '--build-dir'
 _PORT = 23456
 # TODO: dedup constants.
 _UUID_DOORBELL_SERVICE = '7E9648B5-EE32-4B37-9B96-1C5904381BE2'
 _UUID_DOORBELL_CHARACTERISTIC = '8AE241C9-8029-4051-890D-071F62C36FE3'
 
 
-def _find_build_dir() -> str:
-    for i, arg in enumerate(sys.argv):
-        if arg.startswith(_BUILD_DIR_ARG_PREFIX):
-            arg = arg[len(_BUILD_DIR_ARG_PREFIX):]
-            if not arg:
-                return sys.argv[i + 1]
-            if arg[0] == '=':
-                return arg[1:]
-    raise RuntimeError(f'Cannot find flag: {_BUILD_DIR_ARG_PREFIX}')
+@pytest.fixture
+def link() -> LocalLink: return LocalLink()
 
 
-@pytest.fixture(name='bumbler')
-def fixture_bumbler() -> Callable[LocalLink, BumbledDevice]:
-    bin_path = Path(_find_build_dir()) / 'zephyr/zephyr.exe'
-    assert bin_path.exists()
-    def create(link: LocalLink) -> BumbledDevice:
-        return create_bumbled_device_for_zephyr(
-            'DUT', _PORT, link, str(bin_path), extra_program_args=[])
-    return create
+@pytest.fixture
+def bumbled_device(link) -> BumbledDevice:
+    return bumbled_zephyr.create_bumbled_device_for_zephyr(
+            'DUT', _PORT, link,
+            bumbled_zephyr.find_zephyr_binary_from_env())
 
 
-def test_discoverd_and_subscribed(bumbler):
+def test_discoverd_and_subscribed(bumbled_device, link):
     async def run():
-        link = LocalLink()
-        async with bumbler(link) as bumbled_device:
+        async with bumbled_device:
             bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
             proc = bumbled_device.process
             try:

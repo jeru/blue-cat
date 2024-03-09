@@ -13,17 +13,39 @@
 # limitations under the License.
 
 import asyncio.subprocess
+import os.path
+import sys
+
 from bumble.link import LocalLink
 from bumble.transport.tcp_server import open_tcp_server_transport
-
 from bumbled_device import BumbledDevice
+
+
+_BUILD_DIR_ARG_PREFIX = '--build-dir'
 
 
 def create_bumbled_device_for_zephyr(
         controller_name: str, port: int, link: LocalLink,
-        zephyr_program: str, extra_program_args: list[str]):
-    t = open_tcp_server_transport(f'_:{port}')
-    p = asyncio.create_subprocess_exec(
-        zephyr_program, f'--bt-dev=127.0.0.1:{port}', *extra_program_args,
+        zephyr_program: str, extra_program_args: list[str] | None = None
+) -> BumbledDevice:
+    transport = open_tcp_server_transport(f'_:{port}')
+    process = asyncio.create_subprocess_exec(
+        zephyr_program, f'--bt-dev=127.0.0.1:{port}',
+        *(extra_program_args or []),
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE)
-    return BumbledDevice(controller_name, link, t, p)
+    return BumbledDevice(controller_name, link, transport, process)
+
+
+def find_zephyr_binary_from_env() -> str:
+    def find_build_dir() -> str:
+        for i, arg in enumerate(sys.argv):
+            if arg.startswith(_BUILD_DIR_ARG_PREFIX):
+                arg = arg[len(_BUILD_DIR_ARG_PREFIX):]
+                if not arg:
+                    return sys.argv[i + 1]
+                if arg[0] == '=':
+                    return arg[1:]
+        raise RuntimeError(f'Cannot find flag: {_BUILD_DIR_ARG_PREFIX}')
+    bin_path = os.path.join(find_build_dir(), 'zephyr', 'zephyr.exe')
+    assert os.path.exists(bin_path), f"Doesn't exist: f{bin_path}"
+    return bin_path
