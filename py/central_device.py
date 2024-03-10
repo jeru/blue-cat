@@ -13,45 +13,39 @@
 # limitations under the License.
 
 import asyncio
+from typing import Awaitable
 
-from bumble.controller import Controller
-from bumble.device import Device
-from bumble.host import Connection, Host
-from bumble.pairing import PairingConfig, PairingDelegate
-from bumble.link import LocalLink
+from bumble.device import Connection, Device
 
 
-class CentralDevice(Device):
-    def __init__(self, name: str, link: LocalLink,
-                 delegate: PairingDelegate | None = None,
-                 device_listener: Device.Listener | None = None):
-        super().__init__()
-        self.host = Host()
-        self.host.controller = Controller(name, link=link)
+async def scan_and_connect(device: Device) -> (Connection, Awaitable[int]):
+    '''Scans and connects to the device from the first advertisement.
 
-        self.delegate = delegate or PairingDelegate(
-                io_capability=PairingDelegate.DISPLAY_OUTPUT_AND_KEYBOARD_INPUT)
-        self.pairing_config_factory = lambda conn: PairingConfig(
-            delegate=self.delegate)
+    This device will be central.
 
-        self.listener = device_listener or Device.Listener()
+    Returns:
+    * The established connection.
+    * An object to receive a potential security request if the peer device
+      requires so. The int is the auth request, a bit map. Note that if the
+      peer doesn't request a security request, awaiting for it will be blocking
+      forever.
+    '''
+    address_fut = asyncio.Future()
+    def on_advertisement(adv):
+        assert adv.is_connectable
+        address_fut.set_result(adv.address)
+    device.on('advertisement', on_advertisement)
+    await device.start_scanning()
+    address = await address_fut
+    await device.stop_scanning()
 
-    async def scan_and_connect(self, wait_for_security_request: bool = False
-    ) -> Connection:
-        address_queue = asyncio.Queue(1)
-        def on_adv(adv):
-            assert adv.is_connectable
-            address_queue.put_nowait(adv.address)
-        self.on('advertisement', on_adv)
-        await self.start_scanning()
-        address = await address_queue.get()
-        await self.stop_scanning()
+    connect = await device.connect(address)
+    # Registering of the security request must be close to the connection
+    # creation, best not broken up. Otherwise, if the peer device requires
+    # it before it is registered, the message will be lost.
+    called = asyncio.Event()
+    def security_request(_auth_req):
+        called.set()
+    connect.on('security_request', security_request)
 
-        connect = await self.connect(address)
-        if wait_for_security_request:
-            called = asyncio.Event()
-            def security_request(_auth_req):
-                called.set()
-            connect.on('security_request', security_request)
-            await called.wait()
-        return connect
+    return (connect, called.wait())

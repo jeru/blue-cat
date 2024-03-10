@@ -19,23 +19,25 @@ from bumble.pairing import PairingConfig, PairingDelegate
 from bumble.link import LocalLink
 
 
-def create_remote_device(link: LocalLink, **extra_config) -> Device:
-    delegate = extra_config.get('delegate')
-    if delegate: del extra_config['delegate']
+def create_tester_device(name: str, link: LocalLink,
+                         io_capability: PairingDelegate.IoCapability =
+                             PairingDelegate.DISPLAY_OUTPUT_AND_KEYBOARD_INPUT,
+                         device_config: DeviceConfiguration = None) -> Device:
+    '''Device with both host and controller from bumble.'''
+    host = Host()
+    host.controller = Controller(name, link=link)
 
-    extra_config.setdefault('advertising_interval', 10)  # ms
-    extra_config.setdefault('address', 'E0:E0:E0:E0:E0:E0')
+    config = device_config or _default_config(name)
+    device = Device(config=config, host=host)
 
-    config = DeviceConfiguration()
-    config.load_from_dict(extra_config)
-    device = Device(config=config)
-    device.host = Host()
-    device.host.controller = Controller('Remote', link=link)
+    delegate = PairingDelegate(io_capability)
+    device.pairing_config_factory = lambda _: PairingConfig(delegate=delegate)
 
-    if not delegate:
-        delegate = PairingDelegate(
-            io_capability=PairingDelegate.DISPLAY_OUTPUT_AND_KEYBOARD_INPUT)
-    device.pairing_config_factory = lambda conn: PairingConfig(
-        delegate=delegate)
-
+    device.listener = Device.Listener()
     return device
+
+
+def _default_config(name: str) -> DeviceConfiguration:
+    config = DeviceConfiguration()
+    config.load_from_dict({'name': name})
+    return config

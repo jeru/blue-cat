@@ -29,8 +29,9 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
-from remote_device import create_remote_device
 from bumbled_helpers import read_and_print
+from tester_device import create_tester_device
+from peripheral_device import advertise_until_connected
 
 
 _PORT = 23458
@@ -51,21 +52,9 @@ async def bumbled_device(link) -> BumbledDevice:
 
 @pytest.fixture
 async def tester_device(link) -> Device:
-    device = create_remote_device(link, name='TestPeerName')
+    device = create_tester_device('TestPeerName', link)
     await device.power_on()
     return device
-
-
-async def _wait_until_line_with(
-        s: asyncio.StreamReader,
-        w: Callable[str, bool | None]) -> None:
-    while True:
-        line = await s.readline()
-        if not line: break
-        line = line.decode('utf-8')
-        logging.debug('-----STDOUT----- %s', line)
-        value = w(line)
-        if value is not None: return value
 
 
 @pytest.mark.asyncio
@@ -79,17 +68,16 @@ async def test_connected_bonded(bumbled_device, tester_device):
                 succ.set_result(True)
         read_task = read_and_print(proc.stdout, process_line)
 
-        await tester_device.start_advertising()
+        await advertise_until_connected(tester_device)
         await succ
         read_task.cancel()
 
 
 @pytest.mark.asyncio
 async def test_connected_peer_no_input(bumbled_device, link):
-    tester_device = create_remote_device(
-            link, name='TestPeerName',
-            delegate=PairingDelegate(
-                io_capability=PairingDelegate.DISPLAY_OUTPUT_ONLY))
+    tester_device = create_tester_device(
+            name='TestPeerName', link=link,
+            io_capability=PairingDelegate.DISPLAY_OUTPUT_ONLY)
     await tester_device.power_on()
 
     async with bumbled_device:
@@ -106,17 +94,17 @@ async def test_connected_peer_no_input(bumbled_device, link):
             proc.stdin.write(line.encode('utf-8'))
             await proc.stdin.drain()
 
-        with patch('bumble.pairing.PairingDelegate.display_number'
-                   ) as mock_display_number:
-            mock_display_number.side_effect = display_number
-            await tester_device.start_advertising()
+        with patch('bumble.pairing.PairingDelegate.display_number',
+                   side_effect=display_number) as mock_display_number:
+            await advertise_until_connected(tester_device)
             await succ
         read_task.cancel()
 
 
 @pytest.mark.asyncio
 async def test_wrong_name(bumbled_device, link):
-    tester_device = create_remote_device(link, name='WRONG_TestPeerName')
+    tester_device = create_tester_device(
+            name='WRONG_TestPeerName', link=link)
     await tester_device.power_on()
 
     async with bumbled_device:
@@ -150,10 +138,9 @@ async def test_insecure_peer(bumbled_device, tester_device):
                 succ.set_result(False)
         read_task = read_and_print(proc.stdout, process_line)
 
-        with patch('bumble.pairing.PairingDelegate.accept'
-                   ) as mock_accept:
-            mock_accept.return_value = False
-            await tester_device.start_advertising()
+        with patch('bumble.pairing.PairingDelegate.accept',
+                   return_value=False) as mock_accept:
+            await advertise_until_connected(tester_device)
             result = await succ
         mock_accept.assert_awaited_once()
         assert result

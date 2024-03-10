@@ -31,8 +31,9 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
-from central_device import CentralDevice
 from bumbled_helpers import read_and_print
+from central_device import scan_and_connect
+from tester_device import create_tester_device
 
 
 _PORT = 23456
@@ -52,11 +53,11 @@ async def bumbled_device(link) -> BumbledDevice:
             bumbled_zephyr.find_zephyr_binary_from_env())
 
 
-@pytest.fixture
-async def tester_device(link) -> CentralDevice:
-    tester_device = CentralDevice('Peer', link)
-    await tester_device.power_on()
-    return tester_device
+@pytest.fixture(name='tester_device')
+async def fixture_tester_device(link) -> Device:
+    device = create_tester_device('Peer', link)
+    await device.power_on()
+    return device
 
 
 @pytest.mark.asyncio
@@ -66,8 +67,8 @@ async def test_discoverd_and_subscribed(bumbled_device, tester_device):
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
 
-        conn = await tester_device.scan_and_connect(
-                wait_for_security_request=True)
+        conn, auth_req_fut = await scan_and_connect(tester_device)
+        await auth_req_fut
         with patch('bumble.pairing.PairingDelegate.get_number'
                    ) as mock_get_number:
             mock_get_number.return_value = 321098  # Fixed on DUT.
@@ -102,14 +103,14 @@ async def test_delay_passkey(bumbled_device, tester_device):
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
 
-        conn = await tester_device.scan_and_connect(
-                wait_for_security_request=False)
+        conn, auth_req_fut = await scan_and_connect(tester_device)
+        await auth_req_fut
         # Block pairing by this, we don't provide it a value.
         number = asyncio.Future()
-        with patch('bumble.pairing.PairingDelegate.get_number'
-                   ) as mock_get_number:
-            mock_get_number.side_effect = lambda: number
-
+        async def get_number():
+            return await number
+        with patch('bumble.pairing.PairingDelegate.get_number',
+                   side_effect=get_number) as mock_get_number:
             peer = Peer(conn)
             [service] = await peer.discover_service(
                     uuid=_UUID_DOORBELL_SERVICE)

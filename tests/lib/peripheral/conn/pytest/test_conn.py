@@ -30,8 +30,9 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
-from central_device import CentralDevice
 from bumbled_helpers import read_and_print
+from central_device import scan_and_connect
+from tester_device import create_tester_device
 
 
 _PORT = 23457
@@ -48,11 +49,11 @@ async def bumbled_device(link) -> BumbledDevice:
             bumbled_zephyr.find_zephyr_binary_from_env())
 
 
-@pytest.fixture
-async def tester_device(link) -> CentralDevice:
-    tester_device = CentralDevice('Peer', link)
-    await tester_device.power_on()
-    return tester_device
+@pytest.fixture(name='tester_device')
+async def fixture_tester_device(link) -> Device:
+    device = create_tester_device('Peer', link)
+    await device.power_on()
+    return device
 
 
 @pytest.mark.asyncio
@@ -60,18 +61,21 @@ async def test_connected_bonded(bumbled_device, tester_device):
     async with bumbled_device:
         proc = bumbled_device.process
         # Served by `read_task` via `proc.stdout` and consumed by pairing.
-        passkey_queue = asyncio.Queue(1)
+        passkey_fut = asyncio.Future()
 
         def process_line(line: str):
-            g = re.search(r'PK<(?P<pk>\d+)>', line)
-            if g: passkey_queue.put_nowait(int(g['pk']))
+            match = re.search(r'PK<(?P<key>\d+)>', line)
+            if match:
+                passkey_fut.set_result(int(match['key']))
         read_task = read_and_print(proc.stdout, process_line)
 
-        conn = await tester_device.scan_and_connect(
-                wait_for_security_request=True)
-        with patch('bumble.pairing.PairingDelegate.get_number'
-                   ) as mock_get_number:
-            mock_get_number.side_effect = passkey_queue.get
+        async def read_passkey():
+            return await passkey_fut
+
+        conn, auth_req_fut = await scan_and_connect(tester_device)
+        await auth_req_fut
+        with patch('bumble.pairing.PairingDelegate.get_number',
+                   side_effect=read_passkey) as mock_get_number:
             await asyncio.wait_for(conn.pair(), timeout=10.0)
         mock_get_number.assert_awaited_once()
 
@@ -84,11 +88,11 @@ async def test_wrong_passkey(bumbled_device, tester_device):
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
 
-        conn = await tester_device.scan_and_connect(
-                wait_for_security_request=True)
-        with patch('bumble.pairing.PairingDelegate.get_number'
-                   ) as mock_get_number:
-            mock_get_number.return_value = 999999  # Wrong passkey
+        conn, auth_req_fut = await scan_and_connect(tester_device)
+        await auth_req_fut
+        # DUT has hardcoded a different passkey than 999999.
+        with patch('bumble.pairing.PairingDelegate.get_number',
+                   return_value = 999999) as mock_get_number:
             with pytest.raises(asyncio.CancelledError) as err:
                 await asyncio.wait_for(conn.pair(), timeout=10.0)
             assert "disconnection event occurred" in str(err.value), (
