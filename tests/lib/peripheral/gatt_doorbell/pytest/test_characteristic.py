@@ -18,7 +18,9 @@ from pathlib import Path
 import struct
 from typing import Callable
 import sys
+from unittest.mock import patch
 
+import bumble
 from bumble.device import Connection, Device, Peer
 from bumble.link import LocalLink
 from bumble.pairing import PairingDelegate
@@ -29,7 +31,7 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
-from central_device import SmpCentralDevice
+from central_device import CentralDevice
 
 
 _PORT = 23456
@@ -44,9 +46,20 @@ def link() -> LocalLink: return LocalLink()
 
 @pytest.fixture
 def bumbled_device(link) -> BumbledDevice:
+    logging.debug('Created a BumbledDevice')
     return bumbled_zephyr.create_bumbled_device_for_zephyr(
             'DUT', _PORT, link,
             bumbled_zephyr.find_zephyr_binary_from_env())
+
+
+def read_and_print(stdout: asyncio.StreamReader) -> asyncio.Task:
+    async def read():
+        while True:
+            line = await stdout.readline()
+            if not line: break
+            line = line.decode('utf-8')
+            logging.debug('-----STDOUT----- %s', line)
+    return asyncio.create_task(read())
 
 
 def test_discoverd_and_subscribed(bumbled_device, link):
@@ -54,39 +67,76 @@ def test_discoverd_and_subscribed(bumbled_device, link):
         async with bumbled_device:
             bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
             proc = bumbled_device.process
-            try:
-                tester_device = SmpCentralDevice('Peer', link)
-                tester_device.put_passkey(321098)  # Fixed on DUT.
-                await tester_device.power_on()
+            read_task = read_and_print(proc.stdout)
 
-                async def read():
-                    while True:
-                        line = await proc.stdout.readline()
-                        if not line: break
-                        line = line.decode('utf-8')
-                        logging.debug('-----STDOUT----- %s', line)
-                read_task = asyncio.create_task(read())
-                logging.debug('Created read task.')
+            tester_device = CentralDevice('Peer', link)
+            await tester_device.power_on()
 
-                conn = await tester_device.connect_with_pairing()
+            conn = await tester_device.scan_and_connect(
+                    wait_for_security_request=True)
+            with patch('bumble.pairing.PairingDelegate.get_number'
+                       ) as mock_get_number:
+                mock_get_number.return_value = 321098  # Fixed on DUT.
+                await asyncio.wait_for(conn.pair(), timeout=10.0)
+            mock_get_number.assert_awaited_once()
+            assert conn.is_encrypted
+
+            peer = Peer(conn)
+            [service] = await peer.discover_service(
+                    uuid=_UUID_DOORBELL_SERVICE)
+            [characteristic] = await service.discover_characteristics()
+            assert characteristic.uuid == _UUID_DOORBELL_CHARACTERISTIC
+
+            queue = asyncio.Queue()
+            def notify_cb(value: bytes):
+                i = struct.unpack('i', value)[0]
+                queue.put_nowait(i)
+            await characteristic.subscribe(notify_cb)
+            logging.debug('Subscribed.')
+
+            values = [await queue.get() for _ in range(2)]
+            # 123 and 456 are the alternating values to this characteristic,
+            # defined in DUT.
+            assert values == [123, 456] or values == [456, 123], (
+                    f'values = {str(values)}')
+            read_task.cancel()
+    asyncio.run(run())
+
+
+def test_delay_passkey(bumbled_device, link):
+    async def run():
+        async with bumbled_device:
+            proc = bumbled_device.process
+            read_task = read_and_print(proc.stdout)
+
+            tester_device = CentralDevice('Peer', link)
+            await tester_device.power_on()
+            conn = await tester_device.scan_and_connect(
+                    wait_for_security_request=False)
+
+            # Block pairing by this, we don't provide it a value.
+            number = asyncio.Future()
+            with patch('bumble.pairing.PairingDelegate.get_number'
+                       ) as mock_get_number:
+                mock_get_number.side_effect = lambda: number
+
                 peer = Peer(conn)
                 [service] = await peer.discover_service(
                         uuid=_UUID_DOORBELL_SERVICE)
                 [characteristic] = await service.discover_characteristics()
                 assert characteristic.uuid == _UUID_DOORBELL_CHARACTERISTIC
-                
-                queue = asyncio.Queue()
-                def notify_cb(value: bytes):
-                    i = struct.unpack('i', value)[0]
-                    queue.put_nowait(i)
-                await characteristic.subscribe(notify_cb)
-                logging.debug('Subscribed.')
 
-                values = [await queue.get() for _ in range(2)]
-                # 123 and 456 are the alternating values to this characteristic,
-                # defined in DUT.
-                assert values == [123, 456] or values == [456, 123], (
-                        f'values = {str(values)}')
-            finally:
-                logging.debug(f'Final proc exit code: {proc.returncode}')
+                # Test: cannot subscribe.
+                with pytest.raises(bumble.core.ProtocolError) as exc:
+                    await characteristic.subscribe()
+                assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
+                        str(exc.value))
+
+                # Test: cannot read.
+                with pytest.raises(bumble.core.ProtocolError) as exc:
+                    await characteristic.read_value()
+                assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
+                        str(exc.value))
+
+            read_task.cancel()
     asyncio.run(run())

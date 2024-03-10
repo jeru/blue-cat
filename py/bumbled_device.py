@@ -14,6 +14,7 @@
 
 from asyncio.subprocess import Process
 from typing import Awaitable
+import logging
 
 from bumble.controller import Controller
 from bumble.link import LocalLink
@@ -46,10 +47,12 @@ class BumbledDevice:
         self.process = None
 
     async def __aenter__(self):
+        logging.debug('BumbledDevice.__aenter__')
         await self._initializer
         return self
 
     async def __aexit__(self, *args):
+        logging.debug('BumbledDevice.__aexit__')
         await self._close()
 
     async def _close(self):

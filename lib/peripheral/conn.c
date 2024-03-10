@@ -128,7 +128,8 @@ void pairing_complete(struct bt_conn *conn, bool bonded) {
 
 void pairing_failed(struct bt_conn *conn, enum bt_security_err reason) {
     LOG_WRN("reason %d: Pairing failed.", (int)reason);
-    (void)bt_conn_disconnect(conn, BT_HCI_ERR_AUTH_FAIL);
+    int err = bt_conn_disconnect(conn, BT_HCI_ERR_AUTH_FAIL);
+    if (err) LOG_ERR("err %d: Failed to disconnect.", err);
 }
 
 static struct bt_conn_auth_info_cb m_conn_auth_info_cb = {
