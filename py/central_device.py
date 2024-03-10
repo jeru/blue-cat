@@ -13,12 +13,9 @@
 # limitations under the License.
 
 import asyncio
-import logging
-from typing import Awaitable
 
 from bumble.controller import Controller
-from bumble.device import Device, DeviceConfiguration
-from bumble.hci import Address
+from bumble.device import Device
 from bumble.host import Connection, Host
 from bumble.pairing import PairingConfig, PairingDelegate
 from bumble.link import LocalLink
@@ -28,7 +25,7 @@ class CentralDevice(Device):
     def __init__(self, name: str, link: LocalLink,
                  delegate: PairingDelegate | None = None,
                  device_listener: Device.Listener | None = None):
-        super().__init__(config=_default_config())
+        super().__init__()
         self.host = Host()
         self.host.controller = Controller(name, link=link)
 
@@ -53,14 +50,8 @@ class CentralDevice(Device):
         connect = await self.connect(address)
         if wait_for_security_request:
             called = asyncio.Event()
-            def security_request(auth_req):
+            def security_request(_auth_req):
                 called.set()
             connect.on('security_request', security_request)
             await called.wait()
         return connect
-
-
-def _default_config():
-    config = DeviceConfiguration()
-    config.load_from_dict(dict(address='E0:E0:E0:E0:E0:E0'))
-    return config

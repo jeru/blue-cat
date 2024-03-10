@@ -15,8 +15,9 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Callable
+import re
 import sys
+from typing import Callable
 from unittest.mock import patch
 
 from bumble.device import Connection, Device
@@ -30,6 +31,7 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
 from central_device import CentralDevice
+from bumbled_helpers import read_and_print
 
 
 _PORT = 23457
@@ -40,67 +42,47 @@ def link() -> LocalLink: return LocalLink()
 
 
 @pytest.fixture
-def bumbled_device(link) -> BumbledDevice:
+async def bumbled_device(link) -> BumbledDevice:
     return bumbled_zephyr.create_bumbled_device_for_zephyr(
             'DUT', _PORT, link,
             bumbled_zephyr.find_zephyr_binary_from_env())
 
 
-def read_and_print(stdout: asyncio.StreamReader) -> asyncio.Task:
-    async def read():
-        while True:
-            line = await stdout.readline()
-            if not line: break
-            line = line.decode('utf-8')
-            logging.debug('-----STDOUT----- %s', line)
-    return asyncio.create_task(read())
+@pytest.fixture
+async def tester_device(link) -> CentralDevice:
+    tester_device = CentralDevice('Peer', link)
+    await tester_device.power_on()
+    return tester_device
 
 
 @pytest.mark.asyncio
-async def test_connected_bonded(bumbled_device, link):
+async def test_connected_bonded(bumbled_device, tester_device):
     async with bumbled_device:
-        bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
         proc = bumbled_device.process
-        tester_device = CentralDevice('Peer', link)
-        await tester_device.power_on()
-
-        # `read()` will get the passkey and enqueue. `connect()` will consume it.
+        # Served by `read_task` via `proc.stdout` and consumed by pairing.
         passkey_queue = asyncio.Queue(1)
-        async def read():
-            while True:
-                line = await proc.stdout.readline()
-                if not line: break
-                line = line.decode('utf-8')
-                logging.debug('-----STDOUT----- %s', line)
-                p = line.find('PK<')
-                if p != -1:
-                    p = p + 3
-                    q = line.find('>', p)
-                    passkey_queue.put_nowait(int(line[p : q]))
-                elif line.find('Paired. bonded=1') != -1:
-                    logging.debug('Done')
-                    return True
-        async def connect():
-            conn = await tester_device.scan_and_connect(
-                    wait_for_security_request=True)
-            with patch('bumble.pairing.PairingDelegate.get_number'
-                       ) as mock_get_number:
-                mock_get_number.side_effect = passkey_queue.get
-                await asyncio.wait_for(conn.pair(), timeout=10.0)
-            mock_get_number.assert_awaited_once()
 
-        await asyncio.gather(read(), connect())
+        def process_line(line: str):
+            g = re.search(r'PK<(?P<pk>\d+)>', line)
+            if g: passkey_queue.put_nowait(int(g['pk']))
+        read_task = read_and_print(proc.stdout, process_line)
+
+        conn = await tester_device.scan_and_connect(
+                wait_for_security_request=True)
+        with patch('bumble.pairing.PairingDelegate.get_number'
+                   ) as mock_get_number:
+            mock_get_number.side_effect = passkey_queue.get
+            await asyncio.wait_for(conn.pair(), timeout=10.0)
+        mock_get_number.assert_awaited_once()
+
+        read_task.cancel()
 
 
 @pytest.mark.asyncio
-async def test_wrong_passkey(bumbled_device, link):
+async def test_wrong_passkey(bumbled_device, tester_device):
     async with bumbled_device:
-        bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
-
-        tester_device = CentralDevice('Peer', link)
-        await tester_device.power_on()
 
         conn = await tester_device.scan_and_connect(
                 wait_for_security_request=True)

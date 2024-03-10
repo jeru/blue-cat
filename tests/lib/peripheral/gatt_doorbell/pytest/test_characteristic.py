@@ -32,6 +32,7 @@ sys.path.append(str(Path(__file__).parents[5] / 'py'))
 from bumbled_device import BumbledDevice
 import bumbled_zephyr
 from central_device import CentralDevice
+from bumbled_helpers import read_and_print
 
 
 _PORT = 23456
@@ -45,32 +46,25 @@ def link() -> LocalLink: return LocalLink()
 
 
 @pytest.fixture
-def bumbled_device(link) -> BumbledDevice:
-    logging.debug('Created a BumbledDevice')
+async def bumbled_device(link) -> BumbledDevice:
     return bumbled_zephyr.create_bumbled_device_for_zephyr(
             'DUT', _PORT, link,
             bumbled_zephyr.find_zephyr_binary_from_env())
 
 
-def read_and_print(stdout: asyncio.StreamReader) -> asyncio.Task:
-    async def read():
-        while True:
-            line = await stdout.readline()
-            if not line: break
-            line = line.decode('utf-8')
-            logging.debug('-----STDOUT----- %s', line)
-    return asyncio.create_task(read())
+@pytest.fixture
+async def tester_device(link) -> CentralDevice:
+    tester_device = CentralDevice('Peer', link)
+    await tester_device.power_on()
+    return tester_device
 
 
 @pytest.mark.asyncio
-async def test_discoverd_and_subscribed(bumbled_device, link):
+async def test_discoverd_and_subscribed(bumbled_device, tester_device):
     async with bumbled_device:
         bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
-
-        tester_device = CentralDevice('Peer', link)
-        await tester_device.power_on()
 
         conn = await tester_device.scan_and_connect(
                 wait_for_security_request=True)
@@ -103,16 +97,13 @@ async def test_discoverd_and_subscribed(bumbled_device, link):
 
 
 @pytest.mark.asyncio
-async def test_delay_passkey(bumbled_device, link):
+async def test_delay_passkey(bumbled_device, tester_device):
     async with bumbled_device:
         proc = bumbled_device.process
         read_task = read_and_print(proc.stdout)
 
-        tester_device = CentralDevice('Peer', link)
-        await tester_device.power_on()
         conn = await tester_device.scan_and_connect(
                 wait_for_security_request=False)
-
         # Block pairing by this, we don't provide it a value.
         number = asyncio.Future()
         with patch('bumble.pairing.PairingDelegate.get_number'
