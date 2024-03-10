@@ -62,24 +62,62 @@ def read_and_print(stdout: asyncio.StreamReader) -> asyncio.Task:
     return asyncio.create_task(read())
 
 
-def test_discoverd_and_subscribed(bumbled_device, link):
-    async def run():
-        async with bumbled_device:
-            bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
-            proc = bumbled_device.process
-            read_task = read_and_print(proc.stdout)
+@pytest.mark.asyncio
+async def test_discoverd_and_subscribed(bumbled_device, link):
+    async with bumbled_device:
+        bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
+        proc = bumbled_device.process
+        read_task = read_and_print(proc.stdout)
 
-            tester_device = CentralDevice('Peer', link)
-            await tester_device.power_on()
+        tester_device = CentralDevice('Peer', link)
+        await tester_device.power_on()
 
-            conn = await tester_device.scan_and_connect(
-                    wait_for_security_request=True)
-            with patch('bumble.pairing.PairingDelegate.get_number'
-                       ) as mock_get_number:
-                mock_get_number.return_value = 321098  # Fixed on DUT.
-                await asyncio.wait_for(conn.pair(), timeout=10.0)
-            mock_get_number.assert_awaited_once()
-            assert conn.is_encrypted
+        conn = await tester_device.scan_and_connect(
+                wait_for_security_request=True)
+        with patch('bumble.pairing.PairingDelegate.get_number'
+                   ) as mock_get_number:
+            mock_get_number.return_value = 321098  # Fixed on DUT.
+            await asyncio.wait_for(conn.pair(), timeout=10.0)
+        mock_get_number.assert_awaited_once()
+        assert conn.is_encrypted
+
+        peer = Peer(conn)
+        [service] = await peer.discover_service(
+                uuid=_UUID_DOORBELL_SERVICE)
+        [characteristic] = await service.discover_characteristics()
+        assert characteristic.uuid == _UUID_DOORBELL_CHARACTERISTIC
+
+        queue = asyncio.Queue()
+        def notify_cb(value: bytes):
+            i = struct.unpack('i', value)[0]
+            queue.put_nowait(i)
+        await characteristic.subscribe(notify_cb)
+        logging.debug('Subscribed.')
+
+        values = [await queue.get() for _ in range(2)]
+        # 123 and 456 are the alternating values to this characteristic,
+        # defined in DUT.
+        assert values == [123, 456] or values == [456, 123], (
+                f'values = {str(values)}')
+        read_task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_delay_passkey(bumbled_device, link):
+    async with bumbled_device:
+        proc = bumbled_device.process
+        read_task = read_and_print(proc.stdout)
+
+        tester_device = CentralDevice('Peer', link)
+        await tester_device.power_on()
+        conn = await tester_device.scan_and_connect(
+                wait_for_security_request=False)
+
+        # Block pairing by this, we don't provide it a value.
+        number = asyncio.Future()
+        with patch('bumble.pairing.PairingDelegate.get_number'
+                   ) as mock_get_number:
+            mock_get_number.side_effect = lambda: number
 
             peer = Peer(conn)
             [service] = await peer.discover_service(
@@ -87,56 +125,16 @@ def test_discoverd_and_subscribed(bumbled_device, link):
             [characteristic] = await service.discover_characteristics()
             assert characteristic.uuid == _UUID_DOORBELL_CHARACTERISTIC
 
-            queue = asyncio.Queue()
-            def notify_cb(value: bytes):
-                i = struct.unpack('i', value)[0]
-                queue.put_nowait(i)
-            await characteristic.subscribe(notify_cb)
-            logging.debug('Subscribed.')
+            # Test: cannot subscribe.
+            with pytest.raises(bumble.core.ProtocolError) as exc:
+                await characteristic.subscribe()
+            assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
+                    str(exc.value))
 
-            values = [await queue.get() for _ in range(2)]
-            # 123 and 456 are the alternating values to this characteristic,
-            # defined in DUT.
-            assert values == [123, 456] or values == [456, 123], (
-                    f'values = {str(values)}')
-            read_task.cancel()
-    asyncio.run(run())
+            # Test: cannot read.
+            with pytest.raises(bumble.core.ProtocolError) as exc:
+                await characteristic.read_value()
+            assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
+                    str(exc.value))
 
-
-def test_delay_passkey(bumbled_device, link):
-    async def run():
-        async with bumbled_device:
-            proc = bumbled_device.process
-            read_task = read_and_print(proc.stdout)
-
-            tester_device = CentralDevice('Peer', link)
-            await tester_device.power_on()
-            conn = await tester_device.scan_and_connect(
-                    wait_for_security_request=False)
-
-            # Block pairing by this, we don't provide it a value.
-            number = asyncio.Future()
-            with patch('bumble.pairing.PairingDelegate.get_number'
-                       ) as mock_get_number:
-                mock_get_number.side_effect = lambda: number
-
-                peer = Peer(conn)
-                [service] = await peer.discover_service(
-                        uuid=_UUID_DOORBELL_SERVICE)
-                [characteristic] = await service.discover_characteristics()
-                assert characteristic.uuid == _UUID_DOORBELL_CHARACTERISTIC
-
-                # Test: cannot subscribe.
-                with pytest.raises(bumble.core.ProtocolError) as exc:
-                    await characteristic.subscribe()
-                assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
-                        str(exc.value))
-
-                # Test: cannot read.
-                with pytest.raises(bumble.core.ProtocolError) as exc:
-                    await characteristic.read_value()
-                assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
-                        str(exc.value))
-
-            read_task.cancel()
-    asyncio.run(run())
+        read_task.cancel()

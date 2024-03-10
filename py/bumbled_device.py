@@ -58,6 +58,7 @@ class BumbledDevice:
     async def _close(self):
         if self.process:
             self.process.terminate()
+            await self.process.wait()
             self.process = None
         if self.controller:
             self.controller = None

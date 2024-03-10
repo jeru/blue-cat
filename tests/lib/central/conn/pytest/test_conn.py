@@ -56,22 +56,22 @@ async def _wait_until_line_with(
         if value is not None: return value
 
 
-def test_connected_bonded(bumbled_device, link):
-    async def run():
-        async with bumbled_device:
-            proc = bumbled_device.process
-            remote = create_remote_device(link, name='TestPeerName')
-            await remote.power_on()
-            await remote.start_advertising()
-            await _wait_until_line_with(
-                proc.stdout,
-                lambda line:
-                    True if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
-                    None)
-    asyncio.run(run())
+@pytest.mark.asyncio
+async def test_connected_bonded(bumbled_device, link):
+    async with bumbled_device:
+        proc = bumbled_device.process
+        remote = create_remote_device(link, name='TestPeerName')
+        await remote.power_on()
+        await remote.start_advertising()
+        await _wait_until_line_with(
+            proc.stdout,
+            lambda line:
+                True if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
+                None)
 
 
-def test_connected_peer_no_input(bumbled_device, link):
+@pytest.mark.asyncio
+async def test_connected_peer_no_input(bumbled_device, link):
     # DUT has display and keyboard. So authentication will be the peer
     # displaying the passkey and DUT fully inputs.
     class DisplayDelegate(PairingDelegate):
@@ -84,55 +84,52 @@ def test_connected_peer_no_input(bumbled_device, link):
             self.proc_stdin.write(line.encode('utf-8'))
             await self.proc_stdin.drain()
 
-    async def run():
-        async with bumbled_device:
-            proc = bumbled_device.process
-            remote = create_remote_device(
-                link, name='TestPeerName',
-                delegate=DisplayDelegate(proc.stdin))
-            await remote.power_on()
-            await remote.start_advertising()
-            await _wait_until_line_with(
-                proc.stdout,
-                lambda line:
-                    True if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
-                    None)
-    asyncio.run(run())
+    async with bumbled_device:
+        proc = bumbled_device.process
+        remote = create_remote_device(
+            link, name='TestPeerName',
+            delegate=DisplayDelegate(proc.stdin))
+        await remote.power_on()
+        await remote.start_advertising()
+        await _wait_until_line_with(
+            proc.stdout,
+            lambda line:
+                True if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
+                None)
 
 
-def test_wrong_name(bumbled_device, link):
-    async def run():
-        async with bumbled_device:
-            proc = bumbled_device.process
-            remote = create_remote_device(
-                link, name='WRONG___PeerName')
-            await remote.power_on()
-            await remote.start_advertising()
-            result = await _wait_until_line_with(
-                proc.stdout,
-                lambda line:
-                    True if line.find('bt_conn_loop: device_found: Peer name wrong.') == -1 else
-                    False if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
-                    None)
-            assert result
-    asyncio.run(run())
+@pytest.mark.asyncio
+async def test_wrong_name(bumbled_device, link):
+    async with bumbled_device:
+        proc = bumbled_device.process
+        remote = create_remote_device(
+            link, name='WRONG___PeerName')
+        await remote.power_on()
+        await remote.start_advertising()
+        result = await _wait_until_line_with(
+            proc.stdout,
+            lambda line:
+                True if line.find('bt_conn_loop: device_found: Peer name wrong.') == -1 else
+                False if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
+                None)
+        assert result
 
 
-def test_insecure_peer(bumbled_device, link):
+@pytest.mark.asyncio
+async def test_insecure_peer(bumbled_device, link):
     class NoPairingDelegate(PairingDelegate):
         async def accept(self): return False
-    async def run():
-        async with bumbled_device:
-            proc = bumbled_device.process
-            remote = create_remote_device(
-                link, name='TestPeerName', delegate=NoPairingDelegate())
-            await remote.power_on()
-            await remote.start_advertising()
-            await _wait_until_line_with(
-                proc.stdout,
-                lambda line:
-                    # Reason 5: BT_HCI_ERR_AUTH_FAIL
-                    True if line.find('bt_conn_loop: reason 5: Disconnected.') != -1 else
-                    False if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
-                    None)
-    asyncio.run(run())
+
+    async with bumbled_device:
+        proc = bumbled_device.process
+        remote = create_remote_device(
+            link, name='TestPeerName', delegate=NoPairingDelegate())
+        await remote.power_on()
+        await remote.start_advertising()
+        await _wait_until_line_with(
+            proc.stdout,
+            lambda line:
+                # Reason 5: BT_HCI_ERR_AUTH_FAIL
+                True if line.find('bt_conn_loop: reason 5: Disconnected.') != -1 else
+                False if line.find('bt_conn_loop: Paired. bonded=1') != -1 else
+                None)
