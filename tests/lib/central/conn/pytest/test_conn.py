@@ -14,8 +14,6 @@
 
 import asyncio
 import logging
-from pathlib import Path
-import sys
 from typing import Callable
 from unittest.mock import patch
 
@@ -24,14 +22,10 @@ from bumble.link import LocalLink
 from bumble.pairing import PairingDelegate
 import pytest
 
-# TODO: Remove after the testing helpers are made a library.
-sys.path.append(str(Path(__file__).parents[5] / 'py'))
-
-from bumbled_device import BumbledDevice
-import bumbled_zephyr
-from bumbled_helpers import read_and_print
-from tester_device import create_tester_device
-from peripheral_device import advertise_until_connected
+from bluet.process import BumbledProcess
+from bluet.process_zephyr import create_bumbled_process_for_zephyr
+from bluet.peripheral import advertise_until_connected
+from bluet.tester_device import create_tester_device
 
 
 _PORT = 23458
@@ -44,50 +38,46 @@ def link() -> LocalLink: return LocalLink()
 
 
 @pytest.fixture
-async def bumbled_device(link) -> BumbledDevice:
-    return bumbled_zephyr.create_bumbled_device_for_zephyr(
-            'DUT', _PORT, link,
-            bumbled_zephyr.find_zephyr_binary_from_env())
+async def bumbled_process(link) -> BumbledProcess:
+    return create_bumbled_process_for_zephyr(
+            'DUT', port=_PORT, link=link)
 
 
-@pytest.fixture
-async def tester_device(link) -> Device:
+@pytest.fixture(name='tester_device')
+async def fixture_tester_device(link) -> Device:
     device = create_tester_device('TestPeerName', link)
     await device.power_on()
     return device
 
 
 @pytest.mark.asyncio
-async def test_connected_bonded(bumbled_device, tester_device):
-    async with bumbled_device:
-        proc = bumbled_device.process
-
+async def test_connected_bonded(bumbled_process, tester_device):
+    async with bumbled_process:
         succ = asyncio.Future()
         def process_line(line: str):
             if line.find(_BONDED_MESSAGE) != -1:
                 succ.set_result(True)
-        read_task = read_and_print(proc.stdout, process_line)
+        bumbled_process.start_monitoring_stdout(process_line)
+        proc = bumbled_process.process
 
         await advertise_until_connected(tester_device)
         await succ
-        read_task.cancel()
 
 
 @pytest.mark.asyncio
-async def test_connected_peer_no_input(bumbled_device, link):
+async def test_connected_peer_no_input(bumbled_process, link):
     tester_device = create_tester_device(
             name='TestPeerName', link=link,
             io_capability=PairingDelegate.DISPLAY_OUTPUT_ONLY)
     await tester_device.power_on()
 
-    async with bumbled_device:
-        proc = bumbled_device.process
-
+    async with bumbled_process:
         succ = asyncio.Future()
         def process_line(line: str):
             if line.find(_BONDED_MESSAGE) != -1:
                 succ.set_result(True)
-        read_task = read_and_print(proc.stdout, process_line)
+        bumbled_process.start_monitoring_stdout(process_line)
+        proc = bumbled_process.process
 
         async def display_number(number: int, digits: int) -> None:
             line = 'PK%.*dPK\n' % (digits, number)
@@ -98,37 +88,32 @@ async def test_connected_peer_no_input(bumbled_device, link):
                    side_effect=display_number) as mock_display_number:
             await advertise_until_connected(tester_device)
             await succ
-        read_task.cancel()
 
 
 @pytest.mark.asyncio
-async def test_wrong_name(bumbled_device, link):
+async def test_wrong_name(bumbled_process, link):
     tester_device = create_tester_device(
             name='WRONG_TestPeerName', link=link)
     await tester_device.power_on()
 
-    async with bumbled_device:
-        proc = bumbled_device.process
-
+    async with bumbled_process:
         succ = asyncio.Future()
         def process_line(line: str):
             if line.find(_WRONG_PEER_NAME_MESSAGE) != -1:
                 succ.set_result(True)
             elif line.find(_BONDED_MESSAGE) != -1:
                 succ.set_result(False)
-        read_task = read_and_print(proc.stdout, process_line)
+        bumbled_process.start_monitoring_stdout(process_line)
+        proc = bumbled_process.process
 
         await tester_device.start_advertising()
         result = await succ
         assert result
-        read_task.cancel()
 
 
 @pytest.mark.asyncio
-async def test_insecure_peer(bumbled_device, tester_device):
-    async with bumbled_device:
-        proc = bumbled_device.process
-
+async def test_insecure_peer(bumbled_process, tester_device):
+    async with bumbled_process:
         succ = asyncio.Future()
         def process_line(line: str):
             # Reason 5: BT_HCI_ERR_AUTH_FAIL
@@ -136,7 +121,8 @@ async def test_insecure_peer(bumbled_device, tester_device):
                 succ.set_result(True)
             elif line.find(_BONDED_MESSAGE) != -1:
                 succ.set_result(False)
-        read_task = read_and_print(proc.stdout, process_line)
+        bumbled_process.start_monitoring_stdout(process_line)
+        proc = bumbled_process.process
 
         with patch('bumble.pairing.PairingDelegate.accept',
                    return_value=False) as mock_accept:
@@ -144,4 +130,3 @@ async def test_insecure_peer(bumbled_device, tester_device):
             result = await succ
         mock_accept.assert_awaited_once()
         assert result
-        read_task.cancel()

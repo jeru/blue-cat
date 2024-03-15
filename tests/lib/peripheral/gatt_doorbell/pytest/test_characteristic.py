@@ -14,10 +14,8 @@
 
 import asyncio
 import logging
-from pathlib import Path
 import struct
 from typing import Callable
-import sys
 from unittest.mock import patch
 
 import bumble
@@ -26,14 +24,10 @@ from bumble.link import LocalLink
 from bumble.pairing import PairingDelegate
 import pytest
 
-# TODO: Remove after the testing helpers are made a library.
-sys.path.append(str(Path(__file__).parents[5] / 'py'))
-
-from bumbled_device import BumbledDevice
-import bumbled_zephyr
-from bumbled_helpers import read_and_print
-from central_device import scan_and_connect
-from tester_device import create_tester_device
+from bluet.process import BumbledProcess
+from bluet.process_zephyr import create_bumbled_process_for_zephyr
+from bluet.central import scan_and_connect
+from bluet.tester_device import create_tester_device
 
 
 _PORT = 23456
@@ -47,10 +41,9 @@ def link() -> LocalLink: return LocalLink()
 
 
 @pytest.fixture
-async def bumbled_device(link) -> BumbledDevice:
-    return bumbled_zephyr.create_bumbled_device_for_zephyr(
-            'DUT', _PORT, link,
-            bumbled_zephyr.find_zephyr_binary_from_env())
+async def bumbled_process(link) -> BumbledProcess:
+    return create_bumbled_process_for_zephyr(
+            'DUT', port=_PORT, link=link)
 
 
 @pytest.fixture(name='tester_device')
@@ -61,11 +54,11 @@ async def fixture_tester_device(link) -> Device:
 
 
 @pytest.mark.asyncio
-async def test_discoverd_and_subscribed(bumbled_device, tester_device):
-    async with bumbled_device:
-        bumbled_device.controller.random_address = ':'.join(['A0'] * 6)
-        proc = bumbled_device.process
-        read_task = read_and_print(proc.stdout)
+async def test_discoverd_and_subscribed(bumbled_process, tester_device):
+    async with bumbled_process:
+        bumbled_process.controller.random_address = ':'.join(['A0'] * 6)
+        bumbled_process.start_monitoring_stdout()
+        proc = bumbled_process.process
 
         conn, auth_req_fut = await scan_and_connect(tester_device)
         await auth_req_fut
@@ -94,14 +87,13 @@ async def test_discoverd_and_subscribed(bumbled_device, tester_device):
         # defined in DUT.
         assert values == [123, 456] or values == [456, 123], (
                 f'values = {str(values)}')
-        read_task.cancel()
 
 
 @pytest.mark.asyncio
-async def test_delay_passkey(bumbled_device, tester_device):
-    async with bumbled_device:
-        proc = bumbled_device.process
-        read_task = read_and_print(proc.stdout)
+async def test_delay_passkey(bumbled_process, tester_device):
+    async with bumbled_process:
+        bumbled_process.start_monitoring_stdout()
+        proc = bumbled_process.process
 
         conn, auth_req_fut = await scan_and_connect(tester_device)
         await auth_req_fut
@@ -128,5 +120,3 @@ async def test_delay_passkey(bumbled_device, tester_device):
                 await characteristic.read_value()
             assert 'ATT_INSUFFICIENT_AUTHENTICATION_ERROR' in str(
                     str(exc.value))
-
-        read_task.cancel()
