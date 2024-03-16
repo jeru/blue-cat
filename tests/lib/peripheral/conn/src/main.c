@@ -20,17 +20,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
-static void connected(struct bt_conn* conn) {
-    LOG_INF("connected");
-}
+static void connected(struct bt_conn *conn) { LOG_INF("connected"); }
 
-static void disconnected() {
-    LOG_INF("disconnected");
-}
+static void disconnected() { LOG_INF("disconnected"); }
 
-static void passkey_display(int passkey) {
-    LOG_INF("PK<%d>", passkey);
-}
+static void passkey_display(int passkey) { LOG_INF("PK<%d>", passkey); }
 
 static struct blue_cat_peripheral_conn_loop_cb default_loop_cb = {
     .peer_name = CONFIG_BT_DEVICE_NAME,
@@ -41,6 +35,8 @@ static struct blue_cat_peripheral_conn_loop_cb default_loop_cb = {
 
 int main() {
     int err = blue_cat_peripheral_conn_loop_kickoff(&default_loop_cb);
-    if (err != 0) LOG_ERR("------ err %d ------ cannot kickoff...", err);
+    if (err != 0) {
+        LOG_ERR("------ err %d ------ cannot kickoff...", err);
+    }
     return 0;
 }

@@ -20,13 +20,9 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
-static void connected(struct bt_conn* conn) {
-    LOG_INF("connected");
-}
+static void connected(struct bt_conn *conn) { LOG_INF("connected"); }
 
-static void disconnected() {
-    LOG_INF("disconnected");
-}
+static void disconnected() { LOG_INF("disconnected"); }
 
 static void passkey_display(int passkey) {
     LOG_INF("passkey_display: ", passkey);
@@ -36,10 +32,14 @@ static int passkey_entry() {
     LOG_INF("passkey_entry");
 
     char line[128];
-    if (!fgets(line, sizeof(line), stdin)) return -1;
+    if (!fgets(line, sizeof(line), stdin)) {
+        return -1;
+    }
 
     int passkey;
-    if (sscanf(line, "PK%dPK", &passkey) < 0) return -1;
+    if (sscanf(line, "PK%dPK", &passkey) < 0) {
+        return -1;
+    }
     return passkey;
 }
 

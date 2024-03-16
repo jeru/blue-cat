@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
@@ -24,9 +24,7 @@ LOG_MODULE_REGISTER(main);
 
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
-static void passkey_display(int passkey) {
-    LOG_INF("Passkey: %.6d", passkey);
-}
+static void passkey_display(int passkey) { LOG_INF("Passkey: %.6d", passkey); }
 
 static struct blue_cat_peripheral_conn_loop_cb loop_cb = {
     .peer_name = CONFIG_BT_DEVICE_NAME,

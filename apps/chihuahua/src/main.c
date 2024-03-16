@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <blue_cat/central/conn.h>
-#include <zephyr/kernel.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/console/console.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
@@ -24,19 +24,21 @@ LOG_MODULE_REGISTER(main);
 
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
-static void connected_cb(struct bt_conn* conn) {
-    LOG_INF("Connected.");
-}
+static void connected_cb(struct bt_conn *conn) { LOG_INF("Connected."); }
 
 // Returns -1 for invalid.
-static int32_t parse_6digit_number(char* s) {
+static int32_t parse_6digit_number(char *s) {
     int32_t num = 0;
     const int N = 6;
     for (int i = 0; i < N; ++i) {
-        if (s[i] < '0' || s[i] > '9') return -1;
+        if (s[i] < '0' || s[i] > '9') {
+            return -1;
+        }
         num = num * 10 + (s[i] - '0');
     }
-    if (s[N] != '\0') return -1;
+    if (s[N] != '\0') {
+        return -1;
+    }
     return num;
 }
 
@@ -47,8 +49,10 @@ static void passkey_display(int passkey) {
 static int passkey_entry() {
     for (;;) {
         LOG_INF("Input passkey needed. 6 Digits or 'n':");
-        char* s = console_getline();
-        if (s[0] == 'n') return -1;
+        char *s = console_getline();
+        if (s[0] == 'n') {
+            return -1;
+        }
         int32_t passkey = parse_6digit_number(s);
         if (passkey == -1) {
             LOG_ERR("Invalid passkey. Again? 6 digits or 'n'.");
@@ -61,9 +65,13 @@ static int passkey_entry() {
 static bool passkey_confirm(int passkey) {
     LOG_INF("Confirm [y/n]? Passkey: %.6u", passkey);
     for (;;) {
-        char* s = console_getline();
-        if (s[0] == 'y') return true;
-        if (s[0] == 'n') return false;
+        char *s = console_getline();
+        if (s[0] == 'y') {
+            return true;
+        }
+        if (s[0] == 'n') {
+            return false;
+        }
         LOG_INF("Invalid. again [y/n]?");
     }
 }

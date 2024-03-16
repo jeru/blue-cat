@@ -19,9 +19,9 @@
 
 struct blue_cat_peripheral_conn_loop_cb {
     // Peer device name as a preliminary filtering condition.
-    const char* peer_name;
+    const char *peer_name;
     // Called when a connection is successful.
-    void (*connected)(struct bt_conn* conn);
+    void (*connected)(struct bt_conn *conn);
     // Called for notification when disconnected.
     void (*disconnected)();
     // Called to display `passkey`.
@@ -34,6 +34,6 @@ struct blue_cat_peripheral_conn_loop_cb {
 //
 // The device assumes the ability to display only.
 int blue_cat_peripheral_conn_loop_kickoff(
-        struct blue_cat_peripheral_conn_loop_cb* cb);
+    struct blue_cat_peripheral_conn_loop_cb *cb);
 
 #endif  // BLUE_CAT__INCLUDE__PERIPHERAL__CONN_H_

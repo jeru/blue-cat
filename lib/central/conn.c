@@ -16,11 +16,11 @@
 
 #include <blue_cat/central/conn.h>
 
-#include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
-#include <zephyr/sys/atomic.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 LOG_MODULE_REGISTER(bt_conn_loop, CONFIG_BLUE_CAT_CENTRAL_CONN_LOG_LEVEL);
 
 static void start_scan();
@@ -28,33 +28,33 @@ static void start_scan();
 // Holds a `struct bt_conn*` with referencing.
 static atomic_ptr_t m_conn = ATOMIC_PTR_INIT(NULL);
 
-static struct blue_cat_central_conn_loop_cb* m_loop_cb = NULL;
+static struct blue_cat_central_conn_loop_cb *m_loop_cb = NULL;
 
-static bool process_adv_data(struct bt_data* data, void* name_matched) {
+static bool process_adv_data(struct bt_data *data, void *name_matched) {
     if (data->type != BT_DATA_NAME_SHORTENED &&
         data->type != BT_DATA_NAME_COMPLETE) {
         return true;  // Continue processing.
     }
-    *((bool*)name_matched) =
+    *((bool *)name_matched) =
         data->data_len == strlen(m_loop_cb->peer_name) &&
         memcmp(data->data, m_loop_cb->peer_name, data->data_len) == 0;
     return false;  // Seen the name. Stop processing.
 }
 
-static bool does_peer_name_match(struct net_buf_simple* adv_data) {
+static bool does_peer_name_match(struct net_buf_simple *adv_data) {
     bool name_matched = false;
     bt_data_parse(adv_data, process_adv_data, &name_matched);
     return name_matched;
 }
 
-static void print_found_device(const bt_addr_le_t* bt_addr, int8_t rssi) {
+static void print_found_device(const bt_addr_le_t *bt_addr, int8_t rssi) {
     char buf[BT_ADDR_LE_STR_LEN];
     bt_addr_le_to_str(bt_addr, buf, sizeof(buf));
     LOG_DBG("Found device %s rssi %d", buf, rssi);
 }
 
-static void device_found(const bt_addr_le_t* bt_addr, int8_t rssi, uint8_t type,
-                         struct net_buf_simple* adv_data) {
+static void device_found(const bt_addr_le_t *bt_addr, int8_t rssi, uint8_t type,
+                         struct net_buf_simple *adv_data) {
     int err;
 
     print_found_device(bt_addr, rssi);
@@ -68,7 +68,7 @@ static void device_found(const bt_addr_le_t* bt_addr, int8_t rssi, uint8_t type,
         return;  // Supposedly the scanning is still ongoing?
     }
 
-    struct bt_conn* conn = NULL;
+    struct bt_conn *conn = NULL;
     err = bt_conn_le_create(bt_addr, BT_CONN_LE_CREATE_CONN,
                             BT_LE_CONN_PARAM_DEFAULT, &conn);
     if (err) {
@@ -86,10 +86,12 @@ static void device_found(const bt_addr_le_t* bt_addr, int8_t rssi, uint8_t type,
 
 static void start_scan() {
     int err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, device_found);
-    if (err) LOG_ERR("err %d: Failed to start scanning.", err);
+    if (err) {
+        LOG_ERR("err %d: Failed to start scanning.", err);
+    }
 }
 
-static void connected(struct bt_conn* conn, uint8_t err) {
+static void connected(struct bt_conn *conn, uint8_t err) {
     if (err) {
         LOG_WRN("err %d: Failed connection.", err);
         return;
@@ -106,9 +108,9 @@ static void connected(struct bt_conn* conn, uint8_t err) {
     }
 }
 
-static void disconnected(struct bt_conn* conn, uint8_t reason) {
+static void disconnected(struct bt_conn *conn, uint8_t reason) {
     LOG_INF("reason %d: Disconnected.", reason);
-    struct bt_conn* stored_conn;
+    struct bt_conn *stored_conn;
     // Somehow the disconnection happened too soon after connection is
     // initiated.
     while ((stored_conn = atomic_ptr_clear(&m_conn)) == NULL) {
@@ -120,9 +122,7 @@ static void disconnected(struct bt_conn* conn, uint8_t reason) {
     }
 }
 
-static void recycled() {
-    start_scan();
-}
+static void recycled() { start_scan(); }
 
 static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa,
                               const bt_addr_le_t *identity) {
@@ -152,28 +152,36 @@ static void passkey_display(struct bt_conn *conn, unsigned int passkey) {
     m_loop_cb->passkey_display(passkey);
 }
 
-static void passkey_entry(struct bt_conn* conn) {
+static void passkey_entry(struct bt_conn *conn) {
     int passkey = m_loop_cb->passkey_entry();
     if (passkey < 0 || passkey > 999999) {
         int err = bt_conn_auth_cancel(conn);
-        if (err) LOG_ERR("err %d: Failed to reject passkey.", err);
+        if (err) {
+            LOG_ERR("err %d: Failed to reject passkey.", err);
+        }
     } else {
         int err = bt_conn_auth_passkey_entry(conn, passkey);
-        if (err) LOG_ERR("err %d: Failed to input passkey.", err);
+        if (err) {
+            LOG_ERR("err %d: Failed to input passkey.", err);
+        }
     }
 }
 
 static void passkey_confirm(struct bt_conn *conn, unsigned int passkey) {
     if (m_loop_cb->passkey_confirm(passkey)) {
         int err = bt_conn_auth_passkey_confirm(conn);
-        if (err) LOG_ERR("err %d: Failed to confirm passkey.", err);
+        if (err) {
+            LOG_ERR("err %d: Failed to confirm passkey.", err);
+        }
     } else {
         int err = bt_conn_auth_cancel(conn);
-        if (err) LOG_ERR("err %d: Failed to reject passkey.", err);
+        if (err) {
+            LOG_ERR("err %d: Failed to reject passkey.", err);
+        }
     }
 }
 
-static void auth_cancel(struct bt_conn* conn) {
+static void auth_cancel(struct bt_conn *conn) {
     // Do nothing.
 }
 
@@ -206,15 +214,14 @@ static struct bt_conn_auth_info_cb m_conn_auth_info_cb = {
 static atomic_t m_inited = ATOMIC_INIT(0);
 
 int blue_cat_central_conn_loop_kickoff(
-        struct blue_cat_central_conn_loop_cb* cb) {
-    if (cb == NULL ||
-            cb->peer_name == NULL ||
-            cb->passkey_display == NULL ||
-            cb->passkey_entry == NULL ||
-            cb->passkey_confirm == NULL) {
+    struct blue_cat_central_conn_loop_cb *cb) {
+    if (cb == NULL || cb->peer_name == NULL || cb->passkey_display == NULL ||
+        cb->passkey_entry == NULL || cb->passkey_confirm == NULL) {
         return -EINVAL;
     }
-    if (!atomic_cas(&m_inited, 0, 1)) return -EALREADY;
+    if (!atomic_cas(&m_inited, 0, 1)) {
+        return -EALREADY;
+    }
     m_loop_cb = cb;
     int err;
 
