@@ -1,13 +1,13 @@
 # Copyright 2024 Cheng Sheng
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_BLUE_CAT
+if BOARD_CAT
 
 config BOARD
-  default "blue_cat"
+  default "cat"
 
 # Enable the Bluetooth controller if BT is enabled.
 config BT_CTLR
   default BT
 
-endif  # BOARD_BLUE_CAT
+endif  # BOARD_CAT

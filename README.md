@@ -27,3 +27,9 @@ Furthermore, there is no near-by power plug to the doorbell control panel.
 
 # Workflow
 [Here](docs/workflow.md).
+
+# Terminologies
+Since `blue-cat` is both the project name and the name of one of the two boards/apps, we do the following as a distinguishing:
+* Unless otherwise stated, `blue-cat` refers to the whole project.
+* We refer to the blue-cat BLE+GPIO module as `cat`.
+* We refer to the chihuahua BLE+speaker module as `dog`.

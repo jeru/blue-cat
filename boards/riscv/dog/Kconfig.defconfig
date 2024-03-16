@@ -1,10 +1,10 @@
 # Copyright 2024 Cheng Sheng
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_CHIHUAHUA
+if BOARD_DOG
 
 config BOARD
-  default "chihuahua"
+  default "dog"
 
 config HEAP_MEM_POOL_ADD_SIZE_BOARD
   int
@@ -14,4 +14,4 @@ choice BT_HCI_BUS_TYPE
   default BT_ESP32 if BT
 endchoice
 
-endif  # BOARD_CHIHUAHUA
+endif  # BOARD_DOG

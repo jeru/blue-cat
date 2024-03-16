@@ -1,6 +1,6 @@
 # Copyright 2024 Cheng Sheng
 # SPDX-License-Identifier: Apache-2.0
 
-config BOARD_CHIHUAHUA
-  bool "Chihuahua board"
+config BOARD_DOG
+  bool "Dog board"
   depends on SOC_SERIES_ESP32C3

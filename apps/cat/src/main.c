@@ -32,7 +32,7 @@ static struct blue_cat_peripheral_conn_loop_cb loop_cb = {
 };
 
 int main() {
-    if (CONFIG_BT_DEVICE_NAME != BLUE_CAT_PERIPHERAL_DEVICE_NAME) {
+    if (strcmp(CONFIG_BT_DEVICE_NAME, BLUE_CAT_PERIPHERAL_DEVICE_NAME) != 0) {
         LOG_ERR("err: Inconsistent CONFIG_BT_DEVICE_NAME and "
                 "BLUE_CAT_PERIPHERAL_DEVICE_NAME");
         return -EINVAL;

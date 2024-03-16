@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Board itself.
-CONFIG_BOARD_BLUE_CAT=y
+CONFIG_BOARD_CAT=y
 # MCU.
 CONFIG_SOC_NRF52840_QIAA=y
 CONFIG_SOC_SERIES_NRF52X=y

@@ -5,8 +5,8 @@
 #include <nordic/nrf52840_qiaa.dtsi>
 
 / {
-  model = "blue_cat";
-  compatible = "noname,blue_cat";
+  model = "cat";
+  compatible = "noname,cat";
   chosen {
     zephyr,sram = &sram0;
     zephyr,flash = &flash0;

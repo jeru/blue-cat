@@ -1,8 +1,8 @@
 # Copyright 2024 Cheng Sheng
 # SPDX-License-Identifier: Apache-2.0
 
-identifier: blue_cat
-name: Blue Cat
+identifier: cat
+name: Cat
 type: mcu
 arch: arm
 toolchain:

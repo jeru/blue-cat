@@ -1,6 +1,6 @@
 # Copyright 2024 Cheng Sheng
 # SPDX-License-Identifier: Apache-2.0
 
-config BOARD_BLUE_CAT
-  bool "Blue cat board"
+config BOARD_CAT
+  bool "The (blue) cat board: BLE+GPIO sensing."
   depends on SOC_NRF52840_QIAA
