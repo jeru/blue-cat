@@ -20,6 +20,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
+#include <blue_cat/common/ids.h>
+
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 static void connected_cb(struct bt_conn* conn) {
@@ -67,8 +69,7 @@ static bool passkey_confirm(int passkey) {
 }
 
 static struct blue_cat_central_conn_loop_cb loop_cb = {
-    // TODO: Share the constant with the BlueCat app.
-    .peer_name = "BlueCat",
+    .peer_name = BLUE_CAT_PERIPHERAL_DEVICE_NAME,
     .connected = &connected_cb,
     .passkey_display = &passkey_display,
     .passkey_entry = &passkey_entry,

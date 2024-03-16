@@ -18,6 +18,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
+#include <blue_cat/common/ids.h>
 #include <blue_cat/peripheral/conn.h>
 #include <blue_cat/peripheral/gatt_doorbell.h>
 
@@ -33,6 +34,11 @@ static struct blue_cat_peripheral_conn_loop_cb loop_cb = {
 };
 
 int main() {
+    if (CONFIG_BT_DEVICE_NAME != BLUE_CAT_PERIPHERAL_DEVICE_NAME) {
+        LOG_ERR("err: Inconsistent CONFIG_BT_DEVICE_NAME and "
+                "BLUE_CAT_PERIPHERAL_DEVICE_NAME");
+        return -EINVAL;
+    }
     int err;
     err = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
     if (err) {
